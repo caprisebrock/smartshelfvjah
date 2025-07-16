@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { Settings, Bell, Moon, Sun, Eye, EyeOff, Smartphone, Monitor, X, Check } from 'lucide-react';
 import Layout from '../components/Layout';
+import BackButton from '../components/BackButton';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -12,7 +13,27 @@ export default function SettingsPage() {
     weeklyReports: false,
     soundEffects: true,
     compactMode: false,
+    motivationalQuotes: true,
+    gpt4: false,
   });
+
+  // Load preferences from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const prefs = localStorage.getItem('userPreferences');
+      if (prefs) setSettings(prev => ({ ...prev, ...JSON.parse(prefs) }));
+      const gpt4 = localStorage.getItem('enableGPT4');
+      if (gpt4 === 'true') setSettings(prev => ({ ...prev, gpt4: true }));
+    }
+  }, []);
+
+  // Save preferences to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('userPreferences', JSON.stringify(settings));
+      localStorage.setItem('enableGPT4', settings.gpt4 ? 'true' : 'false');
+    }
+  }, [settings]);
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -197,6 +218,50 @@ export default function SettingsPage() {
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           settings.compactMode ? 'translate-x-6' : 'translate-x-1'
                         }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-6">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Motivational Quotes</h3>
+                      <p className="text-sm text-gray-600">Show motivational quotes on the dashboard</p>
+                    </div>
+                    <button
+                      onClick={() => handleSettingToggle('motivationalQuotes')}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.motivationalQuotes ? 'bg-blue-600' : 'bg-gray-200'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.motivationalQuotes ? 'translate-x-6' : 'translate-x-1'}`}
+                      />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-6">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Light/Dark Mode</h3>
+                      <p className="text-sm text-gray-600">Switch between light and dark theme (coming soon)</p>
+                    </div>
+                    <button
+                      onClick={() => handleSettingToggle('darkMode')}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.darkMode ? 'translate-x-6' : 'translate-x-1'}`}
+                      />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-6">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Use GPT-4</h3>
+                      <p className="text-sm text-gray-600">Upgrade AI to GPT-4 (if OpenAI key present)</p>
+                    </div>
+                    <button
+                      onClick={() => handleSettingToggle('gpt4')}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.gpt4 ? 'bg-blue-600' : 'bg-gray-200'}`}
+                      disabled={false}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.gpt4 ? 'translate-x-6' : 'translate-x-1'}`}
                       />
                     </button>
                   </div>

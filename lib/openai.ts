@@ -1,11 +1,10 @@
 // OpenAI API helper functions
 
-// TODO: Install openai package: npm install openai
-// import OpenAI from 'openai';
+import OpenAI from 'openai';
 
-// const openai = new OpenAI({
-//   apiKey: process.env.OPENAI_API_KEY,
-// });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 import { Note } from './db';
 
@@ -34,19 +33,29 @@ export class OpenAIService {
   static async askAboutNotes(
     question: string,
     notes: Note[],
-    conversationHistory: ChatMessage[] = []
-  ): Promise<string> {
+    conversationHistory: ChatMessage[] = [],
+    model: 'gpt-3.5-turbo' | 'gpt-4' = 'gpt-3.5-turbo',
+    tone: 'Summary' | 'Detailed' | 'Bullet Points' | 'Insights' = 'Summary'
+  ): Promise<{ response: string; tokens: number }> {
     try {
-      // TODO: Implement actual OpenAI API call
-      console.log('Asking AI about notes:', question);
-      console.log('Available notes:', notes.length);
-      console.log('Conversation history:', conversationHistory.length);
-
-      // Placeholder response
-      return `I'd be happy to help you with "${question}". However, I need to be connected to the OpenAI API to provide meaningful insights based on your ${notes.length} notes. Once configured, I'll be able to analyze your learning content and provide personalized responses.`;
-    } catch (error) {
+      const systemPrompt = `You are SmartShelf, an AI study assistant. Respond in a helpful, ${tone.toLowerCase()} tone. Context: ${notes.length} notes provided.`;
+      const messages: { role: 'system' | 'user' | 'assistant', content: string }[] = [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: question }
+      ];
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 800,
+        temperature: 0.7,
+      });
+      const response = completion.choices[0]?.message?.content || '';
+      const tokens = completion.usage?.total_tokens || 0;
+      return { response, tokens };
+    } catch (error: any) {
       console.error('Error asking AI:', error);
-      throw new Error('Failed to get AI response');
+      throw new Error(error?.message || 'Failed to get AI response');
     }
   }
 
@@ -54,82 +63,72 @@ export class OpenAIService {
   static async generateQuiz(
     notes: Note[],
     numQuestions: number = 5,
-    difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium',
+    model: 'gpt-3.5-turbo' | 'gpt-4' = 'gpt-3.5-turbo'
   ): Promise<QuizQuestion[]> {
     try {
-      // TODO: Implement actual OpenAI API call
-      console.log('Generating quiz from notes:', notes.length, numQuestions, difficulty);
-
-      // Placeholder questions
-      const placeholderQuestions: QuizQuestion[] = [
-        {
-          question: "What is a key principle of effective business leadership?",
-          options: [
-            "Micromanaging every detail",
-            "Building trust and empowering teams",
-            "Making all decisions alone",
-            "Avoiding difficult conversations"
-          ],
-          correctAnswer: 1,
-          explanation: "Effective leaders build trust and empower their teams to make decisions and take ownership.",
-          difficulty: 'medium'
-        },
-        {
-          question: "Which marketing strategy focuses on creating valuable content?",
-          options: [
-            "Content Marketing",
-            "Cold Calling",
-            "Direct Mail",
-            "Billboard Advertising"
-          ],
-          correctAnswer: 0,
-          explanation: "Content marketing involves creating and sharing valuable content to attract and engage a target audience.",
-          difficulty: 'easy'
-        }
+      const systemPrompt = `You are an AI quiz generator. Create ${numQuestions} ${difficulty} quiz questions based on the user's notes.`;
+      const messages: { role: 'system' | 'user' | 'assistant', content: string }[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify(notes) }
       ];
-
-      return placeholderQuestions.slice(0, numQuestions);
-    } catch (error) {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 1000,
+        temperature: 0.7,
+      });
+      const response = completion.choices[0]?.message?.content || '';
+      // Try to parse as JSON, fallback to string array
+      try {
+        return JSON.parse(response);
+      } catch {
+        return [{
+          question: response,
+          options: [],
+          correctAnswer: 0,
+          explanation: '',
+          difficulty
+        }];
+      }
+    } catch (error: any) {
       console.error('Error generating quiz:', error);
-      throw new Error('Failed to generate quiz');
+      throw new Error(error?.message || 'Failed to generate quiz');
     }
   }
 
   // Get study recommendations
   static async getStudyRecommendations(
     notes: Note[],
-    recentActivity: { books: any[], notes: Note[] }
+    recentActivity: { books: any[], notes: Note[] },
+    model: 'gpt-3.5-turbo' | 'gpt-4' = 'gpt-3.5-turbo'
   ): Promise<StudyRecommendation[]> {
     try {
-      // TODO: Implement actual OpenAI API call
-      console.log('Getting study recommendations for user with', notes.length, 'notes');
-
-      // Placeholder recommendations
-      const placeholderRecommendations: StudyRecommendation[] = [
-        {
-          topic: "Leadership Communication",
-          reason: "You have several notes on leadership but few on communication skills, which are essential for effective leadership.",
-          suggestedResources: [
-            "Crucial Conversations by Kerry Patterson",
-            "Nonviolent Communication by Marshall Rosenberg"
-          ],
-          priority: 'high'
-        },
-        {
-          topic: "Digital Marketing Analytics",
-          reason: "Your marketing notes focus on strategy but could benefit from data-driven insights.",
-          suggestedResources: [
-            "Digital Marketing Analytics by Chuck Hemann",
-            "Lean Analytics by Alistair Croll"
-          ],
-          priority: 'medium'
-        }
+      const systemPrompt = `You are an AI study coach. Analyze the user's notes and recent activity to recommend study topics and resources.`;
+      const messages: { role: 'system' | 'user' | 'assistant', content: string }[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify({ notes, recentActivity }) }
       ];
-
-      return placeholderRecommendations;
-    } catch (error) {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 800,
+        temperature: 0.7,
+      });
+      const response = completion.choices[0]?.message?.content || '';
+      try {
+        return JSON.parse(response);
+      } catch {
+        return [{
+          topic: response,
+          reason: '',
+          suggestedResources: [],
+          priority: 'medium'
+        }];
+      }
+    } catch (error: any) {
       console.error('Error getting recommendations:', error);
-      throw new Error('Failed to get recommendations');
+      throw new Error(error?.message || 'Failed to get recommendations');
     }
   }
 
@@ -137,58 +136,69 @@ export class OpenAIService {
   static async summarizeNotes(
     notes: Note[],
     summaryType: 'topic' | 'time-period',
-    filter?: string
+    filter?: string,
+    model: 'gpt-3.5-turbo' | 'gpt-4' = 'gpt-3.5-turbo'
   ): Promise<string> {
     try {
-      // TODO: Implement actual OpenAI API call
-      console.log('Summarizing notes:', summaryType, filter);
-
-      return `Here's a summary of your ${notes.length} notes: This feature will provide intelligent summaries of your learning insights once the OpenAI API is configured. The summary will highlight key themes, important concepts, and connections between your notes.`;
-    } catch (error) {
+      const systemPrompt = `You are an AI summarizer. Summarize the user's notes by ${summaryType}${filter ? `, filter: ${filter}` : ''}.`;
+      const messages: { role: 'system' | 'user' | 'assistant', content: string }[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify(notes) }
+      ];
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 600,
+        temperature: 0.7,
+      });
+      return completion.choices[0]?.message?.content || '';
+    } catch (error: any) {
       console.error('Error summarizing notes:', error);
-      throw new Error('Failed to summarize notes');
+      throw new Error(error?.message || 'Failed to summarize notes');
     }
   }
 
   // Extract key insights from a collection of notes
-  static async extractKeyInsights(notes: Note[]): Promise<string[]> {
+  static async extractKeyInsights(notes: Note[], model: 'gpt-3.5-turbo' | 'gpt-4' = 'gpt-3.5-turbo'): Promise<string[]> {
     try {
-      // TODO: Implement actual OpenAI API call
-      console.log('Extracting key insights from', notes.length, 'notes');
-
-      // Placeholder insights
-      const placeholderInsights = [
-        "Customer-centric thinking appears frequently in your business notes",
-        "You emphasize the importance of data-driven decision making",
-        "Leadership and emotional intelligence are recurring themes",
-        "Digital transformation strategies are a key focus area"
+      const systemPrompt = `You are an AI insights extractor. List key insights from the user's notes.`;
+      const messages: { role: 'system' | 'user' | 'assistant', content: string }[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify(notes) }
       ];
-
-      return placeholderInsights;
-    } catch (error) {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 600,
+        temperature: 0.7,
+      });
+      const response = completion.choices[0]?.message?.content || '';
+      return response.split('\n').filter(Boolean);
+    } catch (error: any) {
       console.error('Error extracting insights:', error);
-      throw new Error('Failed to extract insights');
+      throw new Error(error?.message || 'Failed to extract insights');
     }
   }
 
   // Generate conversation starters for learning discussions
-  static async generateDiscussionQuestions(notes: Note[]): Promise<string[]> {
+  static async generateDiscussionQuestions(notes: Note[], model: 'gpt-3.5-turbo' | 'gpt-4' = 'gpt-3.5-turbo'): Promise<string[]> {
     try {
-      // TODO: Implement actual OpenAI API call
-      console.log('Generating discussion questions from', notes.length, 'notes');
-
-      // Placeholder questions
-      const placeholderQuestions = [
-        "How can the leadership principles from your notes be applied to remote team management?",
-        "What connections do you see between the marketing strategies and customer psychology concepts in your notes?",
-        "Which business frameworks from your learning could be combined for better results?",
-        "How do the case studies in your notes relate to current market trends?"
+      const systemPrompt = `You are an AI discussion question generator. Create discussion questions based on the user's notes.`;
+      const messages: { role: 'system' | 'user' | 'assistant', content: string }[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify(notes) }
       ];
-
-      return placeholderQuestions;
-    } catch (error) {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 600,
+        temperature: 0.7,
+      });
+      const response = completion.choices[0]?.message?.content || '';
+      return response.split('\n').filter(Boolean);
+    } catch (error: any) {
       console.error('Error generating discussion questions:', error);
-      throw new Error('Failed to generate discussion questions');
+      throw new Error(error?.message || 'Failed to generate discussion questions');
     }
   }
 }

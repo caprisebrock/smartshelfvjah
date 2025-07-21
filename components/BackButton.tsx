@@ -38,7 +38,7 @@ const BackButton: React.FC<BackButtonProps> = ({
           router.push('/');
           break;
         case '/notes':
-          router.push('/my-learning');
+          router.push('/');
           break;
         case '/calendar':
           router.push('/');
@@ -56,6 +56,9 @@ const BackButton: React.FC<BackButtonProps> = ({
           router.push('/');
           break;
         case '/profile':
+          router.push('/');
+          break;
+        case '/add-habit':
           router.push('/');
           break;
         default:

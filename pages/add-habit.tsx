@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
+import BackButton from '../components/BackButton';
 import EmojiPicker from 'emoji-picker-react';
 import { useHabits } from '../lib/HabitsContext';
 import { Smile, Palette } from 'lucide-react';
@@ -120,9 +121,17 @@ export default function AddHabitPage() {
         <div className="max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
           {/* Header */}
-          <div className="mb-12 text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-3">Add New Habit</h1>
-            <p className="text-lg text-gray-600">Create a habit that inspires you to grow</p>
+          <div className="flex items-center gap-4 mb-8 animate-slideIn">
+            <BackButton to="/" />
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <Smile className="w-6 h-6 text-blue-600" />
+                </div>
+                <h1 className="text-3xl font-bold text-gray-900">Add New Habit</h1>
+              </div>
+              <p className="text-gray-600">Create a habit that inspires you to grow</p>
+            </div>
           </div>
 
           {/* Main Content - 2 Column Flex Layout */}

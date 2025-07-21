@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useHabits } from '../lib/HabitsContext';
+import { useUser } from '../lib/useUser';
+import { useProtectedRoute } from '../lib/useProtectedRoute';
+import { useOnboardingGuard } from '../lib/useOnboardingGuard';
 import { Target, BookOpen, Sparkles, TrendingUp, Clock, Play, ArrowRight } from 'lucide-react';
 import MotivationalQuote from '../components/MotivationalQuote';
 
@@ -31,6 +34,7 @@ function formatTimeAgo(dateStr: string) {
 }
 
 export default function Dashboard() {
+  const { user, loading: authLoading } = useOnboardingGuard();
   const { state } = useHabits();
   const hasHabits = state.habits.length > 0;
 
@@ -98,6 +102,29 @@ export default function Dashboard() {
   const noResources = resources.length === 0;
   const noActivity = allActivity.length === 0;
 
+  // Show loading screen if redirecting to auth or user not loaded
+  if (authLoading || !user) {
+    return (
+      <>
+        <Head>
+          <title>SmartShelf - Loading</title>
+        </Head>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <Target className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-xl font-semibold text-gray-900 mb-2">SmartShelf</h1>
+            <p className="text-gray-600">Checking authentication...</p>
+            <div className="mt-4">
+              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -115,7 +142,14 @@ export default function Dashboard() {
               </div>
               <div>
                 <h1 className="text-4xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-lg text-gray-600 mt-1">Your overview of today's progress</p>
+                <p className="text-lg text-gray-600 mt-1">Your overview of today&apos;s progress</p>
+                {user ? (
+                  <p className="text-sm text-gray-500 mt-2">
+                    You&apos;re signed in as: <span className="font-semibold text-gray-700">{user.email}</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-2">Loading user...</p>
+                )}
               </div>
             </div>
           </header>
@@ -126,10 +160,10 @@ export default function Dashboard() {
           </div>
 
           {/* Section 3: Learning Overview */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12 animate-fadeIn" style={{ animationDelay: '0.4s' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12 animate-fadeIn" style={{ animationDelay: '0.4s' }}>
             {/* Learning Stats */}
             <div className="lg:col-span-2 card-gradient">
-              <div className="p-8">
+              <div className="p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                     <BookOpen className="w-6 h-6 text-green-600" />
@@ -181,10 +215,12 @@ export default function Dashboard() {
                     </div>
                   </div>
                 )}
-                <div className="flex flex-col sm:flex-row gap-4">
+                
+                {/* Action Buttons - Centered with proper spacing */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
                   <Link 
                     href="/my-learning"
-                    className="btn-success group"
+                    className="btn-success group flex-1 sm:flex-none sm:min-w-[200px] justify-center"
                   >
                     <BookOpen className="w-5 h-5 mr-2" />
                     View All Resources
@@ -192,7 +228,7 @@ export default function Dashboard() {
                   </Link>
                   <Link 
                     href="/add-resource"
-                    className="btn-secondary group"
+                    className="btn-secondary group flex-1 sm:flex-none sm:min-w-[200px] justify-center"
                   >
                     <Play className="w-5 h-5 mr-2" />
                     Add New Resource
@@ -204,7 +240,7 @@ export default function Dashboard() {
 
             {/* Last Active Resource */}
             <div className="card-gradient">
-              <div className="p-8">
+              <div className="p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                     <Clock className="w-6 h-6 text-purple-600" />
@@ -265,9 +301,9 @@ export default function Dashboard() {
 
           {/* Section 4: Empty State Habit Card (if no habits) */}
           {!hasHabits && (
-            <div className="max-w-lg mx-auto text-center mb-12 animate-fadeIn" style={{ animationDelay: '0.6s' }}>
+            <div className="max-w-lg mx-auto text-center mb-16 animate-fadeIn" style={{ animationDelay: '0.6s' }}>
               <div className="card-gradient">
-                <div className="p-8">
+                <div className="p-6">
                   <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                     <Target className="w-10 h-10 text-white" />
                   </div>
@@ -319,7 +355,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 font-medium">Today's progress</span>
+                        <span className="text-sm text-gray-600 font-medium">Today&apos;s progress</span>
                         <div className="w-20 h-3 bg-gray-200 rounded-full">
                           <div className="w-0 h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"></div>
                         </div>

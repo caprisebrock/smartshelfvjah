@@ -1,90 +1,169 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { Settings, Bell, Moon, Sun, Eye, EyeOff, Smartphone, Monitor, X, Check } from 'lucide-react';
-import Layout from '../components/Layout';
+import { useRouter } from 'next/router';
+import { Settings, Save, Sparkles, Brain, Zap, MessageSquare, Quote, Eye, EyeOff, Trash2, Download, Upload } from 'lucide-react';
 import BackButton from '../components/BackButton';
+import Sidebar from '../components/Sidebar';
+
+interface SmartSettings {
+  enableMotivationalQuotes: boolean;
+  enableGPT4: boolean;
+  enableSmartFocus: boolean;
+  storeAIHistory: boolean;
+  theme: 'light' | 'dark' | 'auto';
+  notifications: boolean;
+  autoSave: boolean;
+  compactMode: boolean;
+}
+
+const DEFAULT_SETTINGS: SmartSettings = {
+  enableMotivationalQuotes: true,
+  enableGPT4: false,
+  enableSmartFocus: true,
+  storeAIHistory: true,
+  theme: 'light',
+  notifications: true,
+  autoSave: true,
+  compactMode: false,
+};
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState({
-    notifications: true,
-    darkMode: false,
-    autoSave: true,
-    progressReminders: true,
-    weeklyReports: false,
-    soundEffects: true,
-    compactMode: false,
-    motivationalQuotes: true,
-    gpt4: false,
+  const router = useRouter();
+  const [settings, setSettings] = useState<SmartSettings>(DEFAULT_SETTINGS);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [dataStats, setDataStats] = useState({
+    aiHistory: 0,
+    aiNotes: 0,
+    resources: 0,
+    sessions: 0,
   });
 
-  // Load preferences from localStorage
+  // Load settings from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const prefs = localStorage.getItem('userPreferences');
-      if (prefs) setSettings(prev => ({ ...prev, ...JSON.parse(prefs) }));
-      const gpt4 = localStorage.getItem('enableGPT4');
-      if (gpt4 === 'true') setSettings(prev => ({ ...prev, gpt4: true }));
+      try {
+        const savedSettings = localStorage.getItem('smartSettings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+        }
+
+        // Load data statistics
+        const aiHistory = JSON.parse(localStorage.getItem('aiHistory') || '[]');
+        const aiNotes = JSON.parse(localStorage.getItem('aiNotes') || '[]');
+        const resources = JSON.parse(localStorage.getItem('resources') || '[]');
+        const sessions = JSON.parse(localStorage.getItem('sessionHistory') || '[]');
+        
+        setDataStats({
+          aiHistory: aiHistory.length,
+          aiNotes: aiNotes.length,
+          resources: resources.length,
+          sessions: sessions.length,
+        });
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
     }
   }, []);
 
-  // Save preferences to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('userPreferences', JSON.stringify(settings));
-      localStorage.setItem('enableGPT4', settings.gpt4 ? 'true' : 'false');
-    }
-  }, [settings]);
-
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
-
-  const onboardingSteps = [
-    {
-      title: "Welcome to SmartShelf! 🎉",
-      description: "Your personal learning and habit tracking companion. Let's get you set up for success.",
-      icon: "✨"
-    },
-    {
-      title: "Track Your Learning 📚",
-      description: "Add books, podcasts, videos, and courses. Track your progress and never lose your place.",
-      icon: "📚"
-    },
-    {
-      title: "Build Better Habits 🎯",
-      description: "Create habits that stick. Set goals, track progress, and celebrate your wins.",
-      icon: "🎯"
-    },
-    {
-      title: "Get Insights 📊",
-      description: "See your progress over time. Understand your patterns and optimize your learning.",
-      icon: "📊"
-    },
-    {
-      title: "You're All Set! 🚀",
-      description: "Start your journey to better habits and continuous learning. The sky's the limit!",
-      icon: "🚀"
-    }
-  ];
-
-  const handleSettingToggle = (setting: keyof typeof settings) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting]
-    }));
+  // Handle setting changes
+  const handleSettingChange = (key: keyof SmartSettings, value: any) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    setHasChanges(true);
   };
 
-  const handleOnboardingNext = () => {
-    if (onboardingStep < onboardingSteps.length - 1) {
-      setOnboardingStep(prev => prev + 1);
-    } else {
-      setShowOnboarding(false);
-      setOnboardingStep(0);
+  // Save settings
+  const handleSave = async () => {
+    if (typeof window === 'undefined') return;
+    
+    setSaving(true);
+    try {
+      localStorage.setItem('smartSettings', JSON.stringify(settings));
+      setHasChanges(false);
+      
+      // Show success feedback
+      setTimeout(() => setSaving(false), 800);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      setSaving(false);
     }
   };
 
-  const handleOnboardingSkip = () => {
-    setShowOnboarding(false);
-    setOnboardingStep(0);
+  // Reset settings
+  const handleReset = () => {
+    if (confirm('Are you sure you want to reset all settings to default values?')) {
+      setSettings(DEFAULT_SETTINGS);
+      setHasChanges(true);
+    }
+  };
+
+  // Clear AI data
+  const handleClearAIData = () => {
+    if (confirm('Are you sure you want to clear all AI chat history and notes? This action cannot be undone.')) {
+      localStorage.removeItem('aiHistory');
+      localStorage.removeItem('aiNotes');
+      setDataStats(prev => ({ ...prev, aiHistory: 0, aiNotes: 0 }));
+    }
+  };
+
+  // Export data
+  const handleExportData = () => {
+    try {
+      const data = {
+        settings,
+        aiHistory: JSON.parse(localStorage.getItem('aiHistory') || '[]'),
+        aiNotes: JSON.parse(localStorage.getItem('aiNotes') || '[]'),
+        resources: JSON.parse(localStorage.getItem('resources') || '[]'),
+        sessionHistory: JSON.parse(localStorage.getItem('sessionHistory') || '[]'),
+        exportDate: new Date().toISOString(),
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `smartshelf-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export data:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
+  // Import data
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        
+        if (confirm('This will replace all your current data. Are you sure you want to continue?')) {
+          if (data.settings) {
+            setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+            localStorage.setItem('smartSettings', JSON.stringify(data.settings));
+          }
+          if (data.aiHistory) localStorage.setItem('aiHistory', JSON.stringify(data.aiHistory));
+          if (data.aiNotes) localStorage.setItem('aiNotes', JSON.stringify(data.aiNotes));
+          if (data.resources) localStorage.setItem('resources', JSON.stringify(data.resources));
+          if (data.sessionHistory) localStorage.setItem('sessionHistory', JSON.stringify(data.sessionHistory));
+          
+          // Refresh the page to reflect changes
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Failed to import data:', error);
+        alert('Invalid backup file. Please select a valid SmartShelf backup file.');
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -93,330 +172,382 @@ export default function SettingsPage() {
         <title>Settings - SmartShelf</title>
         <meta name="description" content="Customize your SmartShelf experience" />
       </Head>
-      <Layout>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            
+      <div className="min-h-screen bg-gray-50 flex animate-fadeIn">
+        <Sidebar />
+        <div className="flex-1 lg:ml-64">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
             {/* Header */}
-            <header className="mb-8">
-              <div className="flex items-center gap-3 mb-2">
-                <Settings className="w-8 h-8 text-blue-600" />
-                <h1 className="text-4xl font-bold text-gray-900">Settings</h1>
+            <div className="flex items-center gap-4 mb-8 animate-slideIn">
+              <div className="lg:hidden">
+                <BackButton />
               </div>
-              <p className="text-lg text-gray-600">Customize your SmartShelf experience</p>
-            </header>
-
-            {/* Settings Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
-              {/* Notifications */}
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <Bell className="w-6 h-6 text-blue-600" />
-                  <h2 className="text-2xl font-bold text-gray-900">Notifications</h2>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                    <Settings className="w-6 h-6 text-gray-600" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
                 </div>
-                
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Push Notifications</h3>
-                      <p className="text-sm text-gray-600">Get reminded about your habits and learning goals</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('notifications')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.notifications ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.notifications ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Progress Reminders</h3>
-                      <p className="text-sm text-gray-600">Weekly reminders to update your progress</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('progressReminders')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.progressReminders ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.progressReminders ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Weekly Reports</h3>
-                      <p className="text-sm text-gray-600">Receive a summary of your weekly progress</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('weeklyReports')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.weeklyReports ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.weeklyReports ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
+                <p className="text-gray-600">Customize your SmartShelf learning experience</p>
               </div>
+              {hasChanges && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="btn-primary group"
+                >
+                  {saving ? (
+                    <>
+                      <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5 mr-2" />
+                      Save Changes
+                      <Sparkles className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-all" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
 
-              {/* Appearance */}
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <Sun className="w-6 h-6 text-yellow-600" />
-                  <h2 className="text-2xl font-bold text-gray-900">Appearance</h2>
-                </div>
-                
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Dark Mode</h3>
-                      <p className="text-sm text-gray-600">Switch to dark theme for better eye comfort</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('darkMode')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.darkMode ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.darkMode ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Compact Mode</h3>
-                      <p className="text-sm text-gray-600">Reduce spacing for more content on screen</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('compactMode')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.compactMode ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.compactMode ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-6">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Motivational Quotes</h3>
-                      <p className="text-sm text-gray-600">Show motivational quotes on the dashboard</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('motivationalQuotes')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.motivationalQuotes ? 'bg-blue-600' : 'bg-gray-200'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.motivationalQuotes ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between mt-6">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Light/Dark Mode</h3>
-                      <p className="text-sm text-gray-600">Switch between light and dark theme (coming soon)</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('darkMode')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.darkMode ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between mt-6">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Use GPT-4</h3>
-                      <p className="text-sm text-gray-600">Upgrade AI to GPT-4 (if OpenAI key present)</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('gpt4')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.gpt4 ? 'bg-blue-600' : 'bg-gray-200'}`}
-                      disabled={false}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.gpt4 ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Behavior */}
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <Monitor className="w-6 h-6 text-green-600" />
-                  <h2 className="text-2xl font-bold text-gray-900">Behavior</h2>
-                </div>
-                
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Auto Save</h3>
-                      <p className="text-sm text-gray-600">Automatically save your progress</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('autoSave')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.autoSave ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.autoSave ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Sound Effects</h3>
-                      <p className="text-sm text-gray-600">Play sounds for interactions</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingToggle('soundEffects')}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        settings.soundEffects ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          settings.soundEffects ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <Smartphone className="w-6 h-6 text-purple-600" />
-                  <h2 className="text-2xl font-bold text-gray-900">Quick Actions</h2>
-                </div>
-                
-                <div className="space-y-4">
-                  <button
-                    onClick={() => setShowOnboarding(true)}
-                    className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🎯</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+              {/* Main Settings */}
+              <div className="lg:col-span-2 space-y-8">
+                {/* AI Features */}
+                <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.2s' }}>
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                        <Brain className="w-6 h-6 text-purple-600" />
+                      </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">Show Onboarding</h3>
-                        <p className="text-sm text-gray-600">Replay the welcome tour</p>
+                        <h3 className="text-xl font-bold text-gray-900">AI Features</h3>
+                        <p className="text-gray-600 text-sm">Configure your AI learning assistant</p>
                       </div>
                     </div>
-                    <Check className="w-5 h-5 text-blue-600" />
-                  </button>
-                  
-                  <button className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">📊</span>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Export Data</h3>
-                        <p className="text-sm text-gray-600">Download your progress data</p>
+
+                    <div className="space-y-4">
+                      {/* GPT-4 Access */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                        <div className="flex items-center gap-3 flex-1">
+                          <Zap className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">GPT-4 Access</div>
+                            <div className="text-sm text-gray-600">Enable premium AI model for better responses</div>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={settings.enableGPT4}
+                            onChange={(e) => handleSettingChange('enableGPT4', e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                        </label>
+                      </div>
+
+                      {/* AI Chat History */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center gap-3 flex-1">
+                          <MessageSquare className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Store AI Chat History</div>
+                            <div className="text-sm text-gray-600">Save your AI conversations locally for reference</div>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={settings.storeAIHistory}
+                            onChange={(e) => handleSettingChange('storeAIHistory', e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                        </label>
                       </div>
                     </div>
-                    <Check className="w-5 h-5 text-gray-600" />
-                  </button>
-                  
-                  <button className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🔄</span>
+                  </div>
+                </div>
+
+                {/* Learning Features */}
+                <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.4s' }}>
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                        <Brain className="w-6 h-6 text-green-600" />
+                      </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">Sync Settings</h3>
-                        <p className="text-sm text-gray-600">Sync across devices</p>
+                        <h3 className="text-xl font-bold text-gray-900">Learning Features</h3>
+                        <p className="text-gray-600 text-sm">Enhance your learning experience</p>
                       </div>
                     </div>
-                    <Check className="w-5 h-5 text-gray-600" />
-                  </button>
+
+                    <div className="space-y-6">
+                      {/* SmartFocus Mode */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-indigo-50 rounded-xl border border-indigo-200">
+                                                  <div className="flex items-center gap-3 flex-1">
+                            <Brain className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">SmartFocus Mode</div>
+                              <div className="text-sm text-gray-600">Enable immersive learning sessions</div>
+                            </div>
+                          </div>
+                                                  <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={settings.enableSmartFocus}
+                              onChange={(e) => handleSettingChange('enableSmartFocus', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                          </label>
+                      </div>
+
+                      {/* Motivational Quotes */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-pink-50 rounded-xl border border-pink-200">
+                                                  <div className="flex items-center gap-3 flex-1">
+                            <Quote className="w-5 h-5 text-pink-600 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">Motivational Quotes</div>
+                              <div className="text-sm text-gray-600">Show inspiring quotes throughout the app</div>
+                            </div>
+                          </div>
+                                                  <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={settings.enableMotivationalQuotes}
+                              onChange={(e) => handleSettingChange('enableMotivationalQuotes', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+                          </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* General Settings */}
+                <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.6s' }}>
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                        <Settings className="w-6 h-6 text-gray-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">General Settings</h3>
+                        <p className="text-gray-600 text-sm">Customize your app experience</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      {/* Theme */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-900 mb-3">Theme</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {(['light', 'dark', 'auto'] as const).map((theme) => (
+                            <label
+                              key={theme}
+                              className={`flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                settings.theme === theme
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 bg-white hover:border-blue-200'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="theme"
+                                value={theme}
+                                checked={settings.theme === theme}
+                                onChange={(e) => handleSettingChange('theme', e.target.value)}
+                                className="sr-only"
+                              />
+                              <span className="text-sm font-medium capitalize">{theme}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Other Settings */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">Notifications</div>
+                            <div className="text-sm text-gray-600">Receive learning reminders</div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={settings.notifications}
+                              onChange={(e) => handleSettingChange('notifications', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">Auto-save</div>
+                            <div className="text-sm text-gray-600">Automatically save your progress</div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={settings.autoSave}
+                              onChange={(e) => handleSettingChange('autoSave', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">Compact Mode</div>
+                            <div className="text-sm text-gray-600">Use smaller UI elements</div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={settings.compactMode}
+                              onChange={(e) => handleSettingChange('compactMode', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Advanced Settings */}
+                <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.8s' }}>
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                          <Settings className="w-6 h-6 text-red-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900">Advanced Settings</h3>
+                          <p className="text-gray-600 text-sm">Data management and reset options</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="btn-ghost"
+                      >
+                        {showAdvanced ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                        {showAdvanced ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+
+                    {showAdvanced && (
+                      <div className="space-y-4">
+                        {/* Data Export/Import */}
+                        <div className="flex gap-3">
+                          <button
+                            onClick={handleExportData}
+                            className="btn-secondary flex-1"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export Data
+                          </button>
+                          <label className="btn-secondary flex-1 cursor-pointer">
+                            <Upload className="w-4 h-4 mr-2" />
+                            Import Data
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={handleImportData}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        {/* Clear AI Data */}
+                        <button
+                          onClick={handleClearAIData}
+                          className="btn-danger w-full"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Clear AI Data
+                        </button>
+
+                        {/* Reset Settings */}
+                        <button
+                          onClick={handleReset}
+                          className="btn-danger w-full"
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Reset All Settings
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar Info */}
+              <div className="lg:col-span-1">
+                <div className="card-gradient animate-fadeIn sticky top-6" style={{ animationDelay: '1s' }}>
+                  <div className="p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Data Overview</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-900">AI Chats</span>
+                        </div>
+                        <span className="text-sm font-bold text-blue-700">{dataStats.aiHistory}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <Save className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-900">AI Notes</span>
+                        </div>
+                        <span className="text-sm font-bold text-green-700">{dataStats.aiNotes}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <Brain className="w-4 h-4 text-purple-600" />
+                          <span className="text-sm font-medium text-purple-900">Resources</span>
+                        </div>
+                        <span className="text-sm font-bold text-purple-700">{dataStats.resources}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-orange-600" />
+                          <span className="text-sm font-medium text-orange-900">Sessions</span>
+                        </div>
+                        <span className="text-sm font-bold text-orange-700">{dataStats.sessions}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+                      <h4 className="font-medium text-gray-900 mb-2">Quick Tips</h4>
+                      <ul className="text-xs text-gray-600 space-y-1">
+                        <li>• Enable GPT-4 for better AI responses</li>
+                        <li>• Use SmartFocus for distraction-free learning</li>
+                        <li>• Export your data regularly as backup</li>
+                        <li>• Motivational quotes boost learning motivation</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Onboarding Modal */}
-        {showOnboarding && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-0 overflow-hidden">
-              <div className="p-8 text-center">
-                <div className="text-6xl mb-6">
-                  {onboardingSteps[onboardingStep].icon}
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  {onboardingSteps[onboardingStep].title}
-                </h2>
-                <p className="text-gray-600 mb-8 leading-relaxed">
-                  {onboardingSteps[onboardingStep].description}
-                </p>
-                
-                <div className="flex items-center justify-center gap-2 mb-6">
-                  {onboardingSteps.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-2 h-2 rounded-full transition-colors ${
-                        index === onboardingStep ? 'bg-blue-600' : 'bg-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleOnboardingSkip}
-                    className="flex-1 px-4 py-3 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    Skip
-                  </button>
-                  <button
-                    onClick={handleOnboardingNext}
-                    className="flex-1 px-4 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors"
-                  >
-                    {onboardingStep === onboardingSteps.length - 1 ? 'Get Started' : 'Next'}
-                  </button>
-                </div>
-              </div>
-              
-              <button
-                onClick={handleOnboardingSkip}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-        )}
-      </Layout>
+      </div>
     </>
   );
 } 

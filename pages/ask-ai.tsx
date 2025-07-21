@@ -1,31 +1,54 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { Bot, Send, Sparkles, RefreshCw, Copy, Save, BookOpen, History } from 'lucide-react';
+import { Bot, Send, Sparkles, RefreshCw, Copy, Save, BookOpen, History, Zap, Clock, MessageSquare } from 'lucide-react';
 import BackButton from '../components/BackButton';
 
 const TONE_OPTIONS = [
-  { value: 'Summary', label: '📝 Summary', description: 'Concise overview' },
-  { value: 'Detailed', label: '📚 Detailed', description: 'In-depth analysis' },
-  { value: 'Bullet Points', label: '• Bullet Points', description: 'Key takeaways' },
-  { value: 'Insights', label: '💡 Insights', description: 'Deep understanding' },
+  { value: 'Summary', label: 'Summary', icon: '📝', description: 'Concise overview of key points' },
+  { value: 'Bullet Points', label: 'Bullet Points', icon: '•', description: 'Structured list format' },
+  { value: 'Insightful Takeaways', label: 'Insightful Takeaways', icon: '💡', description: 'Deep understanding and connections' },
+  { value: 'Detailed', label: 'Detailed', icon: '📚', description: 'Comprehensive explanation' },
 ];
 
 const MODEL_OPTIONS = [
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Fast and efficient' },
-  { value: 'gpt-4', label: 'GPT-4', description: 'Most capable' },
+  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Fast and efficient', badge: 'Standard' },
+  { value: 'gpt-4', label: 'GPT-4', description: 'Most capable', badge: 'Premium' },
 ];
 
-function estimateTokens(text: string) {
+interface AiHistoryEntry {
+  id: string;
+  prompt: string;
+  tone: string;
+  model: string;
+  quote?: string;
+  response: string;
+  timestamp: string;
+  tokens?: number;
+}
+
+interface AiNote {
+  id: string;
+  title: string;
+  content: string;
+  tone: string;
+  quote?: string;
+  date: string;
+  resourceId?: string;
+}
+
+// Token estimation: ~4 characters per token
+function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-function timeAgo(date: Date) {
+function timeAgo(date: Date): string {
   const now = new Date();
   const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
   if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
   return date.toLocaleDateString();
 }
 
@@ -37,179 +60,238 @@ export default function AskAIPage() {
   const [quote, setQuote] = useState('');
   const [aiResponse, setAIResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [editText, setEditText] = useState('');
-  const [history, setHistory] = useState<any[]>([]);
-  const [showHistory, setShowHistory] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-  const [tokenUsage, setTokenUsage] = useState(estimateTokens(''));
-  const [aiTokens, setAiTokens] = useState<number|null>(null);
+  const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<AiHistoryEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(true);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [responseTokens, setResponseTokens] = useState<number | null>(null);
   const responseRef = useRef<HTMLDivElement>(null);
 
-  // Load history and model toggle from localStorage
+  // Load settings and history from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const h = localStorage.getItem('aiHistory');
-      if (h) setHistory(JSON.parse(h));
-      const gpt4 = localStorage.getItem('enableGPT4');
-      if (gpt4 === 'true') {
-        setModel('gpt-4');
+      // Load AI history
+      const savedHistory = localStorage.getItem('aiHistory');
+      if (savedHistory) {
+        try {
+          setHistory(JSON.parse(savedHistory));
+        } catch (e) {
+          console.error('Failed to parse AI history:', e);
+        }
+      }
+
+      // Load settings
+      const settings = localStorage.getItem('smartSettings');
+      if (settings) {
+        try {
+          const parsed = JSON.parse(settings);
+          if (parsed.enableGPT4 && parsed.enableGPT4 === true) {
+            setModel('gpt-4');
+          }
+        } catch (e) {
+          console.error('Failed to parse settings:', e);
+        }
+      }
+
+      // Load draft prompt from session or other pages
+      const draftPrompt = localStorage.getItem('aiDraftPrompt');
+      if (draftPrompt) {
+        setPrompt(draftPrompt);
+        localStorage.removeItem('aiDraftPrompt'); // Clear after loading
       }
     }
   }, []);
 
-  // Update token usage estimate
+  // Update token count when prompt or quote changes
   useEffect(() => {
-    setTokenUsage(estimateTokens(prompt + ' ' + quote));
+    const inputText = prompt + (quote ? ` Quote: ${quote}` : '');
+    setTokenCount(estimateTokens(inputText));
   }, [prompt, quote]);
 
-  // Scroll to response when shown
+  // Scroll to response when it appears
   useEffect(() => {
     if (aiResponse && responseRef.current) {
-      responseRef.current.scrollIntoView({ behavior: 'smooth' });
+      responseRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [aiResponse]);
 
-  // Save history to localStorage
-  const saveHistory = (entry: any) => {
-    if (typeof window === 'undefined') return;
-    const newHistory = [entry, ...history].slice(0, 20); // max 20 entries
+  // Save to localStorage
+  const saveToHistory = (entry: AiHistoryEntry) => {
+    const newHistory = [entry, ...history].slice(0, 50); // Keep last 50 entries
     setHistory(newHistory);
-    localStorage.setItem('aiHistory', JSON.stringify(newHistory));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('aiHistory', JSON.stringify(newHistory));
+    }
   };
 
   // Handle Ask AI
   const handleAskAI = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!prompt.trim()) return;
+
     setIsLoading(true);
     setAIResponse('');
-    setEditMode(false);
-    setCopied(false);
     setError('');
-    setAiTokens(null);
+    setResponseTokens(null);
+    setCopied(false);
+
     try {
-      const res = await fetch('/api/ask', {
+      const requestBody = {
+        question: prompt.trim() + (quote ? `\n\nQuote/Context: ${quote}` : ''),
+        model,
+        tone,
+        conversationHistory: [],
+      };
+
+      const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: prompt.trim() + (quote ? `\nQuote: ${quote}` : ''),
-          model,
-          tone,
-          conversationHistory: [],
-        }),
+        body: JSON.stringify(requestBody),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(err?.error || 'Failed to get AI response.');
-        setIsLoading(false);
-        return;
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Request failed with status ${response.status}`);
       }
-      const data = await res.json();
-      setAIResponse(data.response?.response || data.response || '');
-      setEditText(data.response?.response || data.response || '');
-      setAiTokens(data.response?.tokens || null);
-      saveHistory({
+
+      const data = await response.json();
+      const responseText = data.response?.response || data.response || '';
+      const tokens = data.response?.tokens || data.tokens || null;
+
+      setAIResponse(responseText);
+      setResponseTokens(tokens);
+
+      // Save to history
+      const historyEntry: AiHistoryEntry = {
+        id: Date.now().toString(),
         prompt: prompt.trim(),
         tone,
         model,
-        quote: quote.trim(),
-        response: data.response?.response || data.response || '',
-        tokens: data.response?.tokens || null,
+        quote: quote.trim() || undefined,
+        response: responseText,
         timestamp: new Date().toISOString(),
-      });
+        tokens,
+      };
+      saveToHistory(historyEntry);
+
     } catch (err: any) {
-      setError(err?.message || 'Failed to get AI response.');
+      setError(err.message || 'Failed to get AI response. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Save to Notes
-  const handleSaveToNotes = () => {
-    if (typeof window === 'undefined') return;
-    const note = {
+  // Save as Note
+  const handleSaveAsNote = () => {
+    if (!aiResponse) return;
+
+    const note: AiNote = {
       id: Date.now().toString(),
-      title: prompt.slice(0, 40) || 'AI Note',
-      content: editMode ? editText : aiResponse,
+      title: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
+      content: aiResponse,
       tone,
-      quote,
+      quote: quote || undefined,
       date: new Date().toISOString(),
     };
-    const existing = JSON.parse(localStorage.getItem('aiNotes') || '[]');
-    localStorage.setItem('aiNotes', JSON.stringify([note, ...existing]));
-    router.push('/notes');
+
+    if (typeof window !== 'undefined') {
+      const existingNotes = JSON.parse(localStorage.getItem('aiNotes') || '[]');
+      localStorage.setItem('aiNotes', JSON.stringify([note, ...existingNotes]));
+    }
+
+    // Show success feedback
+    const originalText = 'Save as Note';
+    const button = document.querySelector('[data-save-note]') as HTMLButtonElement;
+    if (button) {
+      button.textContent = '✅ Saved!';
+      setTimeout(() => {
+        button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>Save as Note';
+      }, 1500);
+    }
   };
 
   // Copy to clipboard
   const handleCopy = async () => {
+    if (!aiResponse) return;
+    
     try {
-      await navigator.clipboard.writeText(editMode ? editText : aiResponse);
+      await navigator.clipboard.writeText(aiResponse);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {}
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   };
 
   // Restore from history
-  const handleRestoreHistory = (entry: any) => {
+  const handleRestoreHistory = (entry: AiHistoryEntry) => {
     setPrompt(entry.prompt);
     setTone(entry.tone);
-    setModel(entry.model || 'gpt-3.5-turbo');
+    setModel(entry.model);
     setQuote(entry.quote || '');
     setAIResponse(entry.response);
-    setEditText(entry.response);
-    setEditMode(false);
+    setResponseTokens(entry.tokens || null);
+    setError('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Retry
-  const handleRetry = () => handleAskAI();
-
   // Add to Resource (stub)
   const handleAddToResource = () => {
-    alert('This feature is coming soon!');
+    // TODO: Implement resource assignment
+    alert('Coming soon: Assign this note to a specific learning resource!');
   };
 
-  // GPT-4 toggle (if enabled in localStorage)
-  const gpt4Enabled = typeof window !== 'undefined' && localStorage.getItem('enableGPT4') === 'true';
+  // Check if GPT-4 is enabled
+  const isGPT4Enabled = () => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const settings = JSON.parse(localStorage.getItem('smartSettings') || '{}');
+      return settings.enableGPT4 === true;
+    } catch {
+      return false;
+    }
+  };
 
   return (
     <>
       <Head>
         <title>Ask AI - SmartShelf</title>
-        <meta name="description" content="SmartShelf Companion Assistant" />
+        <meta name="description" content="AI-powered learning assistant for SmartShelf" />
       </Head>
-      <div className="min-h-screen bg-white animate-fadeIn">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Header with back button */}
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 animate-fadeIn">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Header */}
           <div className="flex items-center gap-4 mb-8 animate-slideIn">
             <BackButton />
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <Bot className="w-6 h-6 text-purple-600" />
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Bot className="w-7 h-7 text-white" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900">Ask AI</h1>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">AI Learning Assistant</h1>
+                  <p className="text-gray-600">Get personalized help with your learning journey</p>
+                </div>
               </div>
-              <p className="text-gray-600">Get help with your learning from AI assistant</p>
             </div>
           </div>
 
-          {/* Main content */}
+          {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* AI Chat Form */}
+            {/* AI Chat Interface */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Input Form */}
               <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.2s' }}>
                 <form onSubmit={handleAskAI} className="p-8 space-y-6">
-                  {/* Prompt Input */}
+                  {/* Main Prompt */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      What would you like help with?
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      What would you like help understanding?
                     </label>
                     <textarea
-                      className="textarea-field min-h-[120px]"
-                      placeholder="Ask me anything about your learning, request summaries, explanations, or insights..."
+                      className="textarea-field min-h-[120px] resize-none"
+                      placeholder="Ask me anything about your learning... I can help summarize concepts, explain difficult topics, create study guides, or provide insights on any subject."
                       value={prompt}
                       onChange={e => setPrompt(e.target.value)}
                       disabled={isLoading}
@@ -218,97 +300,147 @@ export default function AskAIPage() {
                   </div>
 
                   {/* Settings Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Tone Selection */}
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">Response Style</label>
-                      <select
-                        className="select-field"
-                        value={tone}
-                        onChange={e => setTone(e.target.value)}
-                        disabled={isLoading}
-                      >
-                        {TONE_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label} - {opt.description}
-                          </option>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3">Response Style</label>
+                      <div className="space-y-2">
+                        {TONE_OPTIONS.map(option => (
+                          <label key={option.value} className="flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer hover:bg-purple-50 hover:border-purple-200" style={{
+                            borderColor: tone === option.value ? '#8b5cf6' : '#e5e7eb',
+                            backgroundColor: tone === option.value ? '#f3f4f6' : 'white'
+                          }}>
+                            <input
+                              type="radio"
+                              name="tone"
+                              value={option.value}
+                              checked={tone === option.value}
+                              onChange={e => setTone(e.target.value)}
+                              className="sr-only"
+                            />
+                            <span className="text-xl">{option.icon}</span>
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{option.label}</div>
+                              <div className="text-sm text-gray-600">{option.description}</div>
+                            </div>
+                          </label>
                         ))}
-                      </select>
+                      </div>
                     </div>
+
+                    {/* Model Selection */}
                     <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">AI Model</label>
-                      <select
-                        className="select-field"
-                        value={model}
-                        onChange={e => setModel(e.target.value)}
-                        disabled={isLoading || (!gpt4Enabled && model === 'gpt-4')}
-                      >
-                        {MODEL_OPTIONS.filter(opt => opt.value !== 'gpt-4' || gpt4Enabled).map(opt => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label} - {opt.description}
-                          </option>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3">AI Model</label>
+                      <div className="space-y-2">
+                        {MODEL_OPTIONS.map(option => (
+                          <label key={option.value} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer hover:bg-blue-50 hover:border-blue-200 ${
+                            !isGPT4Enabled() && option.value === 'gpt-4' ? 'opacity-50 cursor-not-allowed' : ''
+                          }`} style={{
+                            borderColor: model === option.value ? '#3b82f6' : '#e5e7eb',
+                            backgroundColor: model === option.value ? '#f3f4f6' : 'white'
+                          }}>
+                            <input
+                              type="radio"
+                              name="model"
+                              value={option.value}
+                              checked={model === option.value}
+                              onChange={e => setModel(e.target.value)}
+                              disabled={!isGPT4Enabled() && option.value === 'gpt-4'}
+                              className="sr-only"
+                            />
+                            <Zap className="w-5 h-5 text-blue-600" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">{option.label}</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  option.badge === 'Premium' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {option.badge}
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-600">{option.description}</div>
+                            </div>
+                          </label>
                         ))}
-                      </select>
+                      </div>
+                      {!isGPT4Enabled() && (
+                        <p className="text-sm text-gray-500 mt-2">
+                          Enable GPT-4 in <button onClick={() => router.push('/settings')} className="text-blue-600 hover:underline">Settings</button> for premium features
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Quote Input */}
+                  {/* Quote/Context Input */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Quote or Context (Optional)
+                      Quote or Context <span className="text-gray-500 font-normal">(Optional)</span>
                     </label>
                     <input
                       type="text"
                       className="input-field"
-                      placeholder="Paste a quote, excerpt, or provide additional context..."
+                      placeholder="Paste a quote, excerpt, or provide additional context to help me understand better..."
                       value={quote}
                       onChange={e => setQuote(e.target.value)}
                       disabled={isLoading}
                     />
                   </div>
 
-                  {/* Token Usage */}
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>Estimated input tokens: ~{tokenUsage}</span>
-                    {aiTokens !== null && (
-                      <span>Output tokens: {aiTokens}</span>
-                    )}
+                  {/* Token Counter & Submit */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        <span>~{tokenCount} tokens</span>
+                      </div>
+                      {responseTokens && (
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="w-4 h-4" />
+                          <span>{responseTokens} response tokens</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isLoading || !prompt.trim()}
+                      className="btn-primary group min-w-[140px]"
+                    >
+                      {isLoading ? (
+                        <>
+                          <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Thinking...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-5 h-5 mr-2" />
+                          Ask AI
+                          <Sparkles className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-all" />
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* Error Display */}
                   {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700">
-                      <div className="flex items-center justify-between">
-                        <span>{error}</span>
-                        <button 
-                          onClick={handleRetry} 
-                          className="btn-ghost text-red-600 hover:text-red-800"
-                        >
-                          <RefreshCw className="w-4 h-4 mr-1" />
-                          Retry
-                        </button>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-red-600 text-sm">!</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-red-800 font-medium">Something went wrong</p>
+                          <p className="text-red-700 text-sm mt-1">{error}</p>
+                          <button
+                            onClick={() => handleAskAI()}
+                            className="mt-3 text-red-600 hover:text-red-800 font-medium text-sm flex items-center gap-1"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Try Again
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
-
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    className="btn-primary w-full group"
-                    disabled={isLoading || !prompt.trim()}
-                  >
-                    {isLoading ? (
-                      <>
-                        <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        AI is thinking...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-5 h-5 mr-2" />
-                        Ask AI
-                        <Sparkles className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-all" />
-                      </>
-                    )}
-                  </button>
                 </form>
               </div>
 
@@ -317,42 +449,31 @@ export default function AskAIPage() {
                 <div ref={responseRef} className="card-gradient animate-fadeIn">
                   <div className="p-8">
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                        <Bot className="w-6 h-6 text-green-600" />
+                      <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                        <Bot className="w-6 h-6 text-white" />
                       </div>
                       <div>
                         <h3 className="text-xl font-bold text-gray-900">AI Response</h3>
-                        <p className="text-gray-600 text-sm">Generated with {model} in {tone} style</p>
+                        <p className="text-gray-600 text-sm">
+                          {model === 'gpt-4' ? 'GPT-4' : 'GPT-3.5 Turbo'} • {tone} style
+                          {responseTokens && ` • ${responseTokens} tokens`}
+                        </p>
                       </div>
                     </div>
 
-                    {editMode ? (
-                      <textarea
-                        className="textarea-field min-h-[200px] mb-6"
-                        value={editText}
-                        onChange={e => setEditText(e.target.value)}
-                      />
-                    ) : (
-                      <div className="prose max-w-none text-gray-900 mb-6 whitespace-pre-line leading-relaxed">
-                        {aiResponse}
-                      </div>
-                    )}
+                    <div className="prose max-w-none text-gray-900 mb-6 whitespace-pre-line leading-relaxed">
+                      {aiResponse}
+                    </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
                       <button
-                        onClick={() => setEditMode(e => !e)}
-                        className="btn-secondary group"
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        {editMode ? 'Cancel Edit' : 'Edit Response'}
-                      </button>
-                      <button
-                        onClick={handleSaveToNotes}
+                        onClick={handleSaveAsNote}
+                        data-save-note
                         className="btn-success group"
                       >
                         <Save className="w-4 h-4 mr-2" />
-                        Save to Notes
+                        Save as Note
                       </button>
                       <button
                         onClick={handleAddToResource}
@@ -376,17 +497,20 @@ export default function AskAIPage() {
 
             {/* History Sidebar */}
             <div className="lg:col-span-1">
-              <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.4s' }}>
+              <div className="card-gradient animate-fadeIn sticky top-6" style={{ animationDelay: '0.4s' }}>
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center">
                         <History className="w-5 h-5 text-gray-600" />
                       </div>
-                      <h3 className="text-lg font-bold text-gray-900">Recent Chats</h3>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Recent Chats</h3>
+                        <p className="text-sm text-gray-500">{history.length} conversations</p>
+                      </div>
                     </div>
                     <button 
-                      onClick={() => setShowHistory(h => !h)} 
+                      onClick={() => setShowHistory(!showHistory)} 
                       className="btn-ghost text-sm"
                     >
                       {showHistory ? 'Hide' : 'Show'}
@@ -398,21 +522,26 @@ export default function AskAIPage() {
                       {history.length === 0 ? (
                         <div className="text-center text-gray-500 py-8">
                           <Bot className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                          <p className="text-sm">No recent chats yet</p>
-                          <p className="text-xs text-gray-400 mt-1">Your AI conversations will appear here</p>
+                          <p className="text-sm">No conversations yet</p>
+                          <p className="text-xs text-gray-400 mt-1">Your AI chats will appear here</p>
                         </div>
                       ) : (
-                        history.map((entry, idx) => (
+                        history.map((entry) => (
                           <button
-                            key={idx}
-                            className="w-full text-left p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all duration-200"
+                            key={entry.id}
+                            className="w-full text-left p-4 bg-white rounded-xl border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all duration-200 group"
                             onClick={() => handleRestoreHistory(entry)}
                           >
                             <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                              <span className="font-medium text-blue-700">{entry.tone}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-purple-700">{entry.tone}</span>
+                                <span className="px-2 py-0.5 bg-gray-100 rounded-full">
+                                  {entry.model === 'gpt-4' ? 'GPT-4' : 'GPT-3.5'}
+                                </span>
+                              </div>
                               <span>{timeAgo(new Date(entry.timestamp))}</span>
                             </div>
-                            <div className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
+                            <div className="text-sm font-medium text-gray-900 mb-1 line-clamp-2 group-hover:text-purple-700 transition-colors">
                               {entry.prompt}
                             </div>
                             <div className="text-xs text-gray-500 line-clamp-2">

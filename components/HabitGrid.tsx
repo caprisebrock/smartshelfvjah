@@ -17,10 +17,10 @@ export default function HabitGrid() {
         <h3 className="text-xl font-semibold text-gray-800 mb-2">Start Building Better Habits</h3>
         <p className="text-gray-600 mb-4">Create personalized habits with custom emojis, colors, and schedules</p>
         <Link 
-          href="/add-habit"
-          className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          href="/onboarding/first-habit"
+          className="inline-block bg-gradient-to-r from-emerald-500 to-blue-500 text-white px-6 py-2 rounded-lg hover:from-emerald-600 hover:to-blue-600 transition-all duration-200 font-medium shadow-lg"
         >
-          + Add New Habit
+          🎯 Add Your First Habit
         </Link>
       </div>
     );

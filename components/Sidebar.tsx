@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useUser } from '../lib/useUser';
 import { supabase } from '../lib/supabaseClient';
-import { BookOpen, FileText, Bot, Sparkles, BarChart2, Calendar, PlusCircle, Lightbulb, Settings, LogOut, User } from 'lucide-react';
+import { BookOpen, FileText, Bot, Sparkles, BarChart2, Calendar, PlusCircle, Lightbulb, Settings, LogOut, User, Target } from 'lucide-react';
 import { useEffect } from 'react';
 import SignOutButton from './SignOutButton';
 
@@ -13,8 +13,12 @@ const navItems = [
   { label: 'Notes', href: '/notes', icon: FileText },
   { label: 'Ask AI', href: '/ask-ai', icon: Bot },
   { label: 'Progress', href: '/progress', icon: Calendar },
-  { label: 'Add Habit', href: '/add-habit', icon: PlusCircle },
   { label: 'Settings', href: '/settings', icon: Settings },
+];
+
+const habitItems = [
+  { label: 'Habits', href: '/habits', icon: Target },
+  { label: 'Add Habit', href: '/add-habit', icon: PlusCircle, isSecondary: true },
 ];
 
 export default function Sidebar() {
@@ -37,7 +41,7 @@ export default function Sidebar() {
       try {
         const { data } = await supabase
           .from('app_users')
-          .select('name, avatar_url')
+          .select('name, avatar_url, color')
           .eq('id', user.id)
           .single()
         
@@ -78,38 +82,90 @@ export default function Sidebar() {
             ))}
           </div>
         ) : user ? (
-          <nav className="space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`
-                    group flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200
-                    ${active 
-                      ? 'bg-blue-100 text-blue-700 shadow-md' 
-                      : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm'
-                    }
-                    hover:scale-105 active:scale-95
-                  `}
-                >
-                  <Icon className={`
-                    w-5 h-5 transition-all duration-200
-                    ${active ? 'text-blue-600' : 'text-gray-500 group-hover:text-blue-600'}
-                    group-hover:scale-110
-                  `} />
-                  <span className="transition-colors duration-200">
-                    {item.label}
-                  </span>
-                  {active && (
-                    <div className="ml-auto w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                  )}
-                </Link>
-              );
-            })}
+          <nav className="space-y-6">
+            {/* Main Navigation */}
+            <div className="space-y-2">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`
+                      group flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200
+                      ${active 
+                        ? 'bg-blue-100 text-blue-700 shadow-md' 
+                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm'
+                      }
+                      hover:scale-105 active:scale-95
+                    `}
+                  >
+                    <Icon className={`
+                      w-5 h-5 transition-all duration-200
+                      ${active ? 'text-blue-600' : 'text-gray-500 group-hover:text-blue-600'}
+                      group-hover:scale-110
+                    `} />
+                    <span className="transition-colors duration-200">
+                      {item.label}
+                    </span>
+                    {active && (
+                      <div className="ml-auto w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Habits Section */}
+            <div>
+              <div className="px-4 mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  🪴 Habits
+                </h3>
+              </div>
+              <div className="space-y-1">
+                {habitItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className={`
+                        group flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200
+                        ${active 
+                          ? 'bg-emerald-100 text-emerald-700 shadow-md' 
+                          : item.isSecondary
+                            ? 'text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-sm ml-2'
+                            : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-sm'
+                        }
+                        hover:scale-105 active:scale-95
+                      `}
+                    >
+                      <Icon className={`
+                        w-5 h-5 transition-all duration-200
+                        ${active 
+                          ? 'text-emerald-600' 
+                          : item.isSecondary
+                            ? 'text-gray-400 group-hover:text-emerald-600'
+                            : 'text-gray-500 group-hover:text-emerald-600'
+                        }
+                        group-hover:scale-110
+                      `} />
+                      <span className="transition-colors duration-200">
+                        {item.label}
+                      </span>
+                      {active && (
+                        <div className="ml-auto w-2 h-2 bg-emerald-600 rounded-full animate-pulse"></div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           </nav>
         ) : (
           <div className="text-center py-8">
@@ -140,15 +196,14 @@ export default function Sidebar() {
             {/* User Info */}
             <div className="mb-4 p-3 bg-gray-50 rounded-xl">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center overflow-hidden">
-                  {userProfile?.avatar_url ? (
-                    userProfile.avatar_url.startsWith('http') ? (
-                      <img src={userProfile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-sm">{userProfile.avatar_url}</span>
-                    )
+                <div 
+                  className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
+                  style={{ backgroundColor: userProfile?.color || '#2563eb' }}
+                >
+                  {userProfile?.avatar_url && !userProfile.avatar_url.startsWith('http') ? (
+                    <span className="text-sm">{userProfile.avatar_url}</span>
                   ) : (
-                    <User className="w-4 h-4 text-blue-600" />
+                    <User className="w-4 h-4 text-white" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">

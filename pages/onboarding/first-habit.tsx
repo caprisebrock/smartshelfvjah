@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
-import BackButton from '../components/BackButton';
+import Head from 'next/head';
+import BackButton from '../../components/BackButton';
 import EmojiPicker from 'emoji-picker-react';
-import { useHabits } from '../lib/HabitsContext';
-import { useUser } from '../lib/useUser';
-import { supabase } from '../lib/supabaseClient';
-import { Smile, Palette } from 'lucide-react';
+import { useHabits } from '../../lib/HabitsContext';
+import { useUser } from '../../lib/useUser';
+import { supabase } from '../../lib/supabaseClient';
+import { Smile, Palette, Target } from 'lucide-react';
 
 const presetColors = [
   { name: 'Blue', value: '#2563eb', class: 'bg-blue-600' },
@@ -18,7 +18,7 @@ const presetColors = [
 
 const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function AddHabitPage() {
+export default function FirstHabitPage() {
   const router = useRouter();
   const { dispatch } = useHabits();
   const { user } = useUser();
@@ -59,7 +59,15 @@ export default function AddHabitPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    // Validate all required fields are completed
+    if (!formData.name.trim() || !selectedEmoji || !selectedColor) {
+      alert("Please complete all fields.");
+      return;
+    }
+    
+    // Additional validation for specific days
+    if (formData.frequency === 'specific-days' && formData.specificDays.length === 0) {
+      alert("Please select at least one day.");
       return;
     }
 
@@ -164,21 +172,24 @@ export default function AddHabitPage() {
   const isFormValid = formData.name.trim() && selectedEmoji && selectedColor;
 
   return (
-    <Layout>
+    <>
+      <Head>
+        <title>Add Your First Habit - SmartShelf</title>
+      </Head>
       <div className="min-h-screen bg-white">
         <div className="max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
           {/* Header */}
           <div className="flex items-center gap-4 mb-8 animate-slideIn">
-            <BackButton to="/" />
+            <BackButton to="/onboarding/step2" />
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <Smile className="w-6 h-6 text-blue-600" />
+                <div className="w-10 h-10 bg-gradient-to-r from-emerald-100 to-blue-100 rounded-xl flex items-center justify-center">
+                  <Target className="w-6 h-6 text-emerald-600" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900">Add New Habit</h1>
+                <h1 className="text-3xl font-bold text-gray-900">🎯 Add Your First Habit!</h1>
               </div>
-              <p className="text-gray-600">Create a habit that inspires you to grow</p>
+              <p className="text-gray-600">Start strong by setting your first intention</p>
             </div>
           </div>
 
@@ -205,7 +216,7 @@ export default function AddHabitPage() {
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className={`w-full px-4 py-3 text-lg border-2 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition-all duration-200 ease-in-out ${
+                    className={`w-full px-4 py-3 text-lg border-2 rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 transition-all duration-200 ease-in-out ${
                       errors.name ? 'border-red-500' : 'border-gray-200'
                     }`}
                     placeholder="e.g. Read 10 pages, Exercise, Drink water"
@@ -225,7 +236,7 @@ export default function AddHabitPage() {
                     <button
                       type="button"
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className={`w-16 h-16 border-2 rounded-lg shadow-sm hover:border-blue-500 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition-all duration-200 ease-in-out hover:scale-105 flex items-center justify-center ${
+                      className={`w-16 h-16 border-2 rounded-lg shadow-sm hover:border-emerald-500 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 transition-all duration-200 ease-in-out hover:scale-105 flex items-center justify-center ${
                         errors.emoji ? 'border-red-500' : 'border-gray-200'
                       } ${selectedEmoji ? 'bg-gray-50' : 'bg-white'}`}
                       disabled={loading}
@@ -259,13 +270,14 @@ export default function AddHabitPage() {
                         key={color.name}
                         type="button"
                         onClick={() => setSelectedColor(color.value)}
-                        className={`w-12 h-12 rounded-full border-2 transition-all duration-200 ease-in-out hover:scale-110 hover:ring-2 hover:ring-blue-300 ${
+                        className={`w-12 h-12 rounded-full border-2 transition-all duration-200 ease-in-out hover:scale-110 hover:ring-2 hover:ring-emerald-300 ${
                           selectedColor === color.value 
-                            ? 'border-gray-800 scale-110 shadow-lg ring-2 ring-blue-500' 
+                            ? 'border-gray-800 scale-110 shadow-lg ring-2 ring-emerald-500' 
                             : 'border-gray-300 hover:border-gray-400'
                         }`}
                         style={{ backgroundColor: color.value }}
                         title={color.name}
+                        disabled={loading}
                       />
                     ))}
                     
@@ -274,9 +286,10 @@ export default function AddHabitPage() {
                       <button
                         type="button"
                         onClick={() => setShowColorPicker(!showColorPicker)}
-                        className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center text-gray-600 hover:text-gray-800 transition-all duration-200 ease-in-out hover:scale-110 hover:ring-2 hover:ring-blue-300 ${
-                          showColorPicker ? 'border-blue-500 bg-blue-50' : 'border-gray-400 hover:border-gray-600'
+                        className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center text-gray-600 hover:text-gray-800 transition-all duration-200 ease-in-out hover:scale-110 hover:ring-2 hover:ring-emerald-300 ${
+                          showColorPicker ? 'border-emerald-500 bg-emerald-50' : 'border-gray-400 hover:border-gray-600'
                         }`}
+                        disabled={loading}
                       >
                         <Palette size={20} />
                       </button>
@@ -299,6 +312,7 @@ export default function AddHabitPage() {
                             value={customColor}
                             onChange={(e) => handleCustomColorChange(e.target.value)}
                             className="w-full h-12 rounded-lg border border-gray-200 cursor-pointer"
+                            disabled={loading}
                           />
                           <div className="mt-2 text-sm text-gray-500">
                             {customColor}
@@ -332,7 +346,8 @@ export default function AddHabitPage() {
                             frequency: e.target.value as any,
                             specificDays: e.target.value === 'specific-days' ? prev.specificDays : []
                           }))}
-                          className="w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500 transition-all duration-200 ease-in-out"
+                          className="w-5 h-5 text-emerald-600 border-gray-300 focus:ring-emerald-500 transition-all duration-200 ease-in-out"
+                          disabled={loading}
                         />
                         <span className="ml-3 text-lg text-gray-700">{option.label}</span>
                       </label>
@@ -351,9 +366,10 @@ export default function AddHabitPage() {
                             onClick={() => handleDayToggle(day)}
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ease-in-out hover:scale-105 ${
                               formData.specificDays.includes(day)
-                                ? 'bg-blue-100 text-blue-800 shadow-md'
+                                ? 'bg-emerald-100 text-emerald-800 shadow-md'
                                 : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                             }`}
+                            disabled={loading}
                           >
                             {day}
                           </button>
@@ -371,15 +387,17 @@ export default function AddHabitPage() {
                   <button
                     type="submit"
                     disabled={!isFormValid || loading}
-                    className="mt-6 w-full rounded-xl bg-blue-500 text-white py-3 text-base font-semibold hover:bg-blue-600 transition-colors duration-200 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white py-3 text-base font-semibold hover:from-emerald-600 hover:to-blue-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
                   >
                     {loading ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Adding Habit...
+                        Saving...
                       </>
                     ) : (
-                      'Add Habit'
+                      <>
+                        Add Habit
+                      </>
                     )}
                   </button>
                 </div>
@@ -418,10 +436,19 @@ export default function AddHabitPage() {
                 </div>
 
                 {/* Completion Status */}
-                {isFormValid && (
-                  <div className="mt-8 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-green-800 font-medium text-center">
-                      ✨ All set! Your habit is ready to be created.
+                {isFormValid && !loading && (
+                  <div className="mt-8 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <p className="text-emerald-800 font-medium text-center">
+                      ✨ All set! Your first habit is ready to be created.
+                    </p>
+                  </div>
+                )}
+
+                {/* Loading State */}
+                {loading && (
+                  <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-blue-800 font-medium text-center">
+                      🚀 Creating your first habit...
                     </p>
                   </div>
                 )}
@@ -430,6 +457,6 @@ export default function AddHabitPage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 } 

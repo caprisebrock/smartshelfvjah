@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { BookOpen, Plus, Filter, Grid, List } from 'lucide-react';
+import { BookOpen, Plus, Filter, Grid, List, Trash2 } from 'lucide-react';
 import BackButton from '../components/BackButton';
+import { useUser } from '../lib/useUser';
+import { supabase } from '../lib/supabaseClient';
 
 // Resource types and emoji mapping
 const RESOURCE_TYPES = [
@@ -27,32 +29,55 @@ type ResourceTypeKey = keyof typeof TYPE_EMOJI;
 
 interface LearningResource {
   id: string;
+  user_id: string;
   emoji: string;
   type: string;
   title: string;
   author?: string;
-  duration: number;
-  progress: number;
-  categories: string[];
+  duration_minutes: number;
+  progress_minutes: number;
+  category_tags: string[];
   notification?: string;
-  lastActive: string;
+  last_active: string;
 }
 
 export default function MyLearningPage() {
   const [resources, setResources] = useState<LearningResource[]>([]);
   const [activeTab, setActiveTab] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { user } = useUser();
 
-  // Load resources from localStorage on mount
+  // Load resources from Supabase on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('resources');
-      if (stored) {
-        setResources(JSON.parse(stored));
+    const loadResources = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
       }
-    }
-  }, []);
+
+      try {
+        const { data, error } = await supabase
+          .from('learning_resources')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading resources:', error);
+        } else {
+          setResources(data || []);
+        }
+      } catch (err) {
+        console.error('Error loading resources:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadResources();
+  }, [user?.id]);
 
   // Filtering logic
   const filteredResources =
@@ -82,15 +107,66 @@ export default function MyLearningPage() {
     return 'from-gray-400 to-gray-500';
   };
 
-  const ResourceCard = ({ res, index }: { res: LearningResource; index: number }) => (
-    <div
-      className="card-interactive animate-fadeIn"
-      style={{ animationDelay: `${index * 0.1}s` }}
-    >
-      <button
-        onClick={() => handleCardClick(res.id)}
-        className="w-full text-left p-6 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-2xl"
+  // Delete resource function
+  const handleDeleteResource = async (resourceId: string) => {
+    if (!user?.id) {
+      alert('Authentication error. Please sign in again.');
+      return;
+    }
+
+    const confirmed = confirm('Are you sure you want to delete this learning resource? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from('learning_resources')
+        .delete()
+        .eq('id', resourceId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        alert('Failed to delete resource: ' + error.message);
+        return;
+      }
+
+      // Remove from local state
+      setResources(prev => prev.filter(r => r.id !== resourceId));
+      alert('Resource deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting resource:', err);
+      alert('Failed to delete resource. Please try again.');
+    }
+  };
+
+  const ResourceCard = ({ res, index }: { res: LearningResource; index: number }) => {
+    const [deleting, setDeleting] = useState(false);
+
+    const onDeleteClick = async (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent card click
+      setDeleting(true);
+      await handleDeleteResource(res.id);
+      setDeleting(false);
+    };
+
+    return (
+      <div
+        className="card-interactive animate-fadeIn relative"
+        style={{ animationDelay: `${index * 0.1}s` }}
       >
+        {/* Delete Button */}
+        <button
+          onClick={onDeleteClick}
+          disabled={deleting}
+          className="absolute top-3 right-3 z-10 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Delete resource"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => handleCardClick(res.id)}
+          className="w-full text-left p-6 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-2xl"
+        >
         <div className="flex items-center gap-4 mb-4">
           <div className="w-14 h-14 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
             {res.emoji}
@@ -101,9 +177,9 @@ export default function MyLearningPage() {
               <p className="text-gray-600 text-sm mb-2">{res.author}</p>
             )}
             <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span>{res.duration} min</span>
+              <span>{res.duration_minutes} min</span>
               <span>•</span>
-              <span>{res.progress} / {res.duration} min completed</span>
+              <span>{res.progress_minutes} / {res.duration_minutes} min completed</span>
             </div>
           </div>
         </div>
@@ -112,41 +188,42 @@ export default function MyLearningPage() {
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-600 mb-2">
             <span>Progress</span>
-            <span>{Math.round((res.progress / res.duration) * 100)}%</span>
+            <span>{Math.round((res.progress_minutes / res.duration_minutes) * 100)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className={`bg-gradient-to-r ${getProgressColor(res.progress, res.duration)} h-2 rounded-full transition-all duration-500`}
-              style={{ width: `${Math.min(100, (res.progress / res.duration) * 100)}%` }}
+              className={`bg-gradient-to-r ${getProgressColor(res.progress_minutes, res.duration_minutes)} h-2 rounded-full transition-all duration-500`}
+              style={{ width: `${Math.min(100, (res.progress_minutes / res.duration_minutes) * 100)}%` }}
             ></div>
           </div>
         </div>
         
         {/* Categories */}
-        {res.categories && res.categories.length > 0 && (
+        {res.category_tags && res.category_tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
-            {res.categories.slice(0, 3).map((tag: string) => (
+            {res.category_tags.slice(0, 3).map((tag: string) => (
               <span key={tag} className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-medium">
                 {tag}
               </span>
             ))}
-            {res.categories.length > 3 && (
+            {res.category_tags.length > 3 && (
               <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
-                +{res.categories.length - 3} more
+                +{res.category_tags.length - 3} more
               </span>
             )}
           </div>
         )}
         
         <div className="text-xs text-gray-500 flex items-center justify-between">
-          <span>Last active: {new Date(res.lastActive).toLocaleDateString()}</span>
+          <span>Last active: {new Date(res.last_active).toLocaleDateString()}</span>
           <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium capitalize">
             {res.type}
           </div>
         </div>
-      </button>
-    </div>
-  );
+        </button>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -231,7 +308,25 @@ export default function MyLearningPage() {
           </div>
 
           {/* Resource Cards Grid or Empty State */}
-          {filteredResources.length === 0 ? (
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-2xl shadow-lg p-6 animate-pulse">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 bg-gray-200 rounded-2xl"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-2 bg-gray-200 rounded"></div>
+                    <div className="h-2 bg-gray-200 rounded w-4/5"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredResources.length === 0 ? (
             <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.4s' }}>
               <div className="p-12 text-center">
                 <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -265,13 +360,13 @@ export default function MyLearningPage() {
                   </div>
                   <div className="text-center">
                     <div className="text-3xl font-bold text-green-700 mb-1">
-                      {filteredResources.filter(r => r.progress >= r.duration).length}
+                      {filteredResources.filter(r => r.progress_minutes >= r.duration_minutes).length}
                     </div>
                     <div className="text-sm text-green-600">Completed</div>
                   </div>
                   <div className="text-center">
                     <div className="text-3xl font-bold text-purple-700 mb-1">
-                      {filteredResources.reduce((sum, r) => sum + r.progress, 0)}
+                      {filteredResources.reduce((sum, r) => sum + r.progress_minutes, 0)}
                     </div>
                     <div className="text-sm text-purple-600">Minutes Learned</div>
                   </div>

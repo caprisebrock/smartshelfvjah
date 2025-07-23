@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { supabase } from './supabaseClient';
+import { useUser } from './useUser';
 
 export interface Habit {
   id: string;
@@ -14,12 +16,15 @@ export interface Habit {
 
 interface HabitsState {
   habits: Habit[];
+  loading: boolean;
 }
 
 type HabitsAction = 
   | { type: 'ADD_HABIT'; payload: Omit<Habit, 'id' | 'dateCreated' | 'streak' | 'completions'> }
   | { type: 'DELETE_HABIT'; payload: string }
-  | { type: 'TOGGLE_COMPLETION'; payload: { habitId: string; date: string } };
+  | { type: 'TOGGLE_COMPLETION'; payload: { habitId: string; date: string } }
+  | { type: 'LOAD_HABITS'; payload: Habit[] }
+  | { type: 'SET_LOADING'; payload: boolean };
 
 const HabitsContext = createContext<{
   state: HabitsState;
@@ -77,13 +82,68 @@ const habitsReducer = (state: HabitsState, action: HabitsAction): HabitsState =>
         })
       };
     
+    case 'LOAD_HABITS':
+      return {
+        ...state,
+        habits: action.payload,
+        loading: false
+      };
+    
+    case 'SET_LOADING':
+      return {
+        ...state,
+        loading: action.payload
+      };
+    
     default:
       return state;
   }
 };
 
 export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(habitsReducer, { habits: [] });
+  const [state, dispatch] = useReducer(habitsReducer, { habits: [], loading: false });
+  const { user } = useUser();
+
+  // Load habits from Supabase when user is available
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadHabits = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      try {
+        const { data, error } = await supabase
+          .from('habits')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading habits:', error);
+          return;
+        }
+
+        // Transform database habits to match our interface
+        const transformedHabits: Habit[] = (data || []).map(dbHabit => ({
+          id: dbHabit.id.toString(),
+          name: dbHabit.name,
+          emoji: dbHabit.emoji,
+          color: dbHabit.color,
+          frequency: dbHabit.frequency,
+          specificDays: dbHabit.specific_days || undefined,
+          dateCreated: dbHabit.created_at || new Date().toISOString(),
+          streak: 0, // TODO: Calculate from completions
+          completions: [] // TODO: Load completions from database
+        }));
+
+        dispatch({ type: 'LOAD_HABITS', payload: transformedHabits });
+      } catch (err) {
+        console.error('Error loading habits:', err);
+      }
+    };
+
+    loadHabits();
+  }, [user?.id]);
 
   return (
     <HabitsContext.Provider value={{ state, dispatch }}>

@@ -61,14 +61,22 @@ export default function Profile() {
 
   // Handle premium upgrade
   const handleUpgradePremium = async () => {
-    if (!user?.id) return
-    
     setUpgradingPremium(true)
     try {
+      // Get the current authenticated user using supabase.auth.getUser()
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      
+      if (!authUser || authError) {
+        alert('Authentication error. Please sign in again.')
+        return
+      }
+
+      console.log('✅ Upgrading premium for user ID:', authUser.id)
+
       const { error } = await supabase
         .from('app_users')
         .update({ is_premium: true })
-        .eq('id', user.id)
+        .eq('id', authUser.id)
 
       if (error) {
         throw new Error(error.message)
@@ -85,26 +93,32 @@ export default function Profile() {
   }
 
   // Handle profile save
-  const handleProfileSave = () => {
+  const handleProfileSave = async () => {
     setIsEditing(false)
-    // Refetch profile data to get updated values
-    if (user) {
-      const fetchUpdatedProfile = async () => {
-        try {
-          const { data } = await supabase
-            .from('app_users')
-            .select('goal_focus, is_premium, last_active, timezone, marketing_opt_in')
-            .eq('id', user.id)
-            .single()
-          
-          if (data) {
-            setProfile(data)
-          }
-        } catch (err) {
-          console.error('Failed to refetch profile:', err)
-        }
+    
+    try {
+      // Get the current authenticated user using supabase.auth.getUser()
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      
+      if (!authUser || authError) {
+        console.error('Auth error during profile save:', authError)
+        return
       }
-      fetchUpdatedProfile()
+
+      console.log('✅ Refetching profile for user ID:', authUser.id)
+
+      // Refetch profile data to get updated values
+      const { data } = await supabase
+        .from('app_users')
+        .select('goal_focus, is_premium, last_active, timezone, marketing_opt_in')
+        .eq('id', authUser.id)
+        .single()
+      
+      if (data) {
+        setProfile(data)
+      }
+    } catch (err) {
+      console.error('Failed to refetch profile:', err)
     }
   }
 

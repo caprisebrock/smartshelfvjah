@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useHabits } from '../lib/HabitsContext';
 import { useUser } from '../lib/useUser';
 import { useProtectedRoute } from '../lib/useProtectedRoute';
@@ -37,6 +38,19 @@ export default function Dashboard() {
   const { user, loading: authLoading } = useOnboardingGuard();
   const { state } = useHabits();
   const hasHabits = state.habits.length > 0;
+  const router = useRouter();
+  
+  // Check for first habit success
+  useEffect(() => {
+    if (router.query['first-habit'] === 'success') {
+      // Show success message briefly
+      setTimeout(() => {
+        // Remove the query param
+        const { 'first-habit': removed, ...rest } = router.query;
+        router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+      }, 3000);
+    }
+  }, [router]);
 
   // --- Real Data State ---
   const [resources, setResources] = useState<any[]>([]);
@@ -132,6 +146,20 @@ export default function Dashboard() {
         <meta name="description" content="Your personal learning and habit tracking dashboard" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+
+      {/* First Habit Success Notification */}
+      {router.query['first-habit'] === 'success' && (
+        <div className="fixed top-4 right-4 z-50 animate-fadeIn">
+          <div className="bg-gradient-to-r from-emerald-500 to-green-500 text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3">
+            <div className="text-2xl">🎉</div>
+            <div>
+              <div className="font-semibold">Congratulations!</div>
+              <div className="text-sm opacity-90">Your first habit has been created successfully!</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 animate-fadeIn">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Section 1: Dashboard Welcome Header */}

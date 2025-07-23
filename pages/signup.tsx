@@ -64,7 +64,7 @@ export default function Signup() {
 
         if (user.email_confirmed_at) {
           // User is immediately confirmed, redirect to onboarding
-          router.push('/onboarding')
+          router.push('/onboarding/step1')
         } else {
           // Email confirmation required
           setSuccess('Please check your email and click the confirmation link to complete your registration.')

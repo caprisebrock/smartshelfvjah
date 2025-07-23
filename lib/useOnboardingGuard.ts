@@ -12,7 +12,7 @@ export function useOnboardingGuard() {
       if (loading || !user) return
 
       // Skip check for auth pages and onboarding itself
-      const authPages = ['/login', '/signup', '/sign-up', '/onboarding', '/auth']
+      const authPages = ['/login', '/signup', '/sign-up', '/onboarding', '/onboarding/step1', '/onboarding/step2', '/onboarding/first-habit', '/auth']
       if (authPages.includes(router.pathname)) return
 
       try {
@@ -30,7 +30,7 @@ export function useOnboardingGuard() {
         // If profile is incomplete, redirect to onboarding
         if (!data?.name || !data?.goal_focus) {
           console.log('Profile incomplete, redirecting to onboarding')
-          router.push('/onboarding')
+          router.push('/onboarding/step1')
         }
       } catch (error) {
         console.error('Unexpected error in onboarding guard:', error)

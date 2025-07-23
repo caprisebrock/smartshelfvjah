@@ -3,6 +3,8 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Plus, BookOpen, Save, Sparkles, Search, Loader, ExternalLink } from 'lucide-react';
 import BackButton from '../components/BackButton';
+import { useUser } from '../lib/useUser';
+import { supabase } from '../lib/supabaseClient';
 
 const RESOURCE_TYPES = [
   { key: 'book', label: 'Book', emoji: '📚' },
@@ -30,6 +32,7 @@ interface GoogleBookResult {
 
 export default function AddResourcePage() {
   const router = useRouter();
+  const { user } = useUser();
   const [form, setForm] = useState({
     emoji: '📚',
     type: 'book',
@@ -196,7 +199,7 @@ export default function AddResourcePage() {
   };
 
   // Submit form
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     
@@ -208,31 +211,77 @@ export default function AddResourcePage() {
     
     setSubmitting(true);
     
-    // Create resource object
-    const resource = {
-      id: Date.now().toString(),
-      emoji: form.emoji,
-      type: form.type,
-      title: form.title,
-      author: form.author,
-      duration: Number(form.duration),
-      progress: Number(form.progress),
-      categories: [...form.categories, ...(form.otherCategory ? [form.otherCategory] : [])],
-      notification: form.notification,
-      cover: form.cover,
-      description: form.description,
-      isbn: form.isbn,
-      lastActive: new Date().toISOString(),
-    };
-    
-    // Save to localStorage
-    const existing = JSON.parse(localStorage.getItem('resources') || '[]');
-    localStorage.setItem('resources', JSON.stringify([resource, ...existing]));
-    
-    // Redirect after short delay
-    setTimeout(() => {
+    try {
+      // 1️⃣ **Get the authenticated user**
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (!user || userError) {
+        console.error("❌ Auth error:", userError);
+        alert("You must be signed in.");
+        setSubmitting(false);
+        return;
+      }
+
+      // 2️⃣ **Validate the user exists in app_users**
+      const { data: appUser, error: appUserErr } = await supabase
+        .from("app_users")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+      if (appUserErr || !appUser) {
+        console.error("APP_USER VALIDATION ERROR:", appUserErr);
+        alert("You need a profile to save a resource. Please complete onboarding.");
+        setSubmitting(false);
+        return;
+      }
+      console.log("✅ User validated in app_users:", appUser.id);
+
+      // Extract form variables for the insert
+      const type = form.type;
+      const title = form.title;
+      const author = form.author;
+      const emoji = form.emoji;
+      const duration = Number(form.duration);
+      const progress = Number(form.progress);
+      const reminder_date = form.notification ? new Date(form.notification).toISOString() : null;
+      
+      // Handle categories - combine form.categories and form.otherCategory
+      const primaryCategory = form.categories;
+      const customCategory = form.otherCategory;
+      const finalTags = [...primaryCategory, ...(customCategory ? [customCategory] : [])];
+
+      // 3️⃣ **Insert learning resource with explicit user_id**
+      const { error: insertError } = await supabase.from("learning_resources").insert({
+        type,
+        title,
+        author,
+        emoji,
+        category_tags: finalTags,
+        duration_minutes: duration,
+        progress_minutes: progress,
+        reminder_date,
+        created_at: new Date(),
+        updated_at: new Date(),
+        user_id: user.id, // ✅ Required foreign key
+      });
+
+      if (insertError) {
+        console.error("❌ Failed to insert learning resource:", insertError);
+        alert("Failed to save your learning resource. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      console.log("✅ Learning resource saved successfully!");
+      alert("✅ Resource saved!");
       router.push('/my-learning');
-    }, 400);
+      
+    } catch (err) {
+      console.error('Error saving resource:', err);
+      alert('Failed to save resource. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Clean up debounce on unmount

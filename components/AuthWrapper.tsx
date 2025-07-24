@@ -36,11 +36,30 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     '/signup', 
     '/sign-up', 
     '/auth',
-    '/api/auth/callback' // Supabase auth callback
+    '/auth/callback', // Supabase auth callback
+    '/api/auth/callback' // API auth callback
   ]
 
   // Check if current page is public
   const isPublicPage = publicPages.includes(router.pathname)
+
+  // Clear any stale session data on app initialization
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Check if this is a fresh browser session (no sessionStorage)
+      const hasSessionData = window.sessionStorage.getItem('supabase.auth.token')
+      
+      if (!hasSessionData) {
+        // Clear any localStorage auth tokens that might persist
+        const keys = Object.keys(window.localStorage)
+        keys.forEach(key => {
+          if (key.includes('supabase') && key.includes('auth')) {
+            window.localStorage.removeItem(key)
+          }
+        })
+      }
+    }
+  }, [])
 
   useEffect(() => {
     // Don't redirect if we're still loading or on a public page

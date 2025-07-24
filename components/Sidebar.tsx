@@ -25,6 +25,7 @@ export default function Sidebar() {
   const router = useRouter();
   const { user, loading } = useUser();
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   
   const isActive = (href: string) => {
     if (href === '/') {
@@ -36,8 +37,12 @@ export default function Sidebar() {
   // Fetch user profile data
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!user?.id) return
+      if (!user?.id) {
+        setProfileLoading(false)
+        return
+      }
       
+      setProfileLoading(true)
       try {
         const { data } = await supabase
           .from('app_users')
@@ -50,6 +55,8 @@ export default function Sidebar() {
         }
       } catch (error) {
         console.error('Error fetching user profile:', error)
+      } finally {
+        setProfileLoading(false)
       }
     }
     
@@ -194,28 +201,42 @@ export default function Sidebar() {
         {user && (
           <div className="mt-8 pt-6 border-t border-gray-200">
             {/* User Info */}
-            <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+            <Link href="/profile" className="block mb-4 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200">
               <div className="flex items-center gap-3">
-                <div 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
-                  style={{ backgroundColor: userProfile?.color || '#2563eb' }}
-                >
-                  {userProfile?.avatar_url && !userProfile.avatar_url.startsWith('http') ? (
-                    <span className="text-sm">{userProfile.avatar_url}</span>
+                {/* Avatar - 40x40 circle with emoji centered */}
+                {profileLoading ? (
+                  <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
+                ) : (
+                  <div 
+                    className="w-10 h-10 rounded-full flex items-center justify-center shadow-sm border-2 border-white"
+                    style={{ backgroundColor: userProfile?.color || '#6b7280' }}
+                  >
+                    {userProfile?.avatar_url ? (
+                      <span className="text-lg">{userProfile.avatar_url}</span>
+                    ) : (
+                      <span className="text-lg">❓</span>
+                    )}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  {profileLoading ? (
+                    <>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-1"></div>
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-16"></div>
+                    </>
                   ) : (
-                    <User className="w-4 h-4 text-white" />
+                    <>
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {userProfile?.name || user.email}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        View Profile
+                      </p>
+                    </>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {userProfile?.name || user.email}
-                  </p>
-                  <Link href="/profile" className="text-xs text-blue-600 hover:underline">
-                    View Profile
-                  </Link>
-                </div>
               </div>
-            </div>
+            </Link>
 
             {/* Sign Out Button */}
             <SignOutButton variant="sidebar" />

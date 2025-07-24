@@ -4,7 +4,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Configure Supabase client to use sessionStorage and disable persistent sessions
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
+    autoRefreshToken: true,
+    persistSession: false, // Disable session persistence across browser restarts
+    detectSessionInUrl: true
+  }
+})
 
 // Helper function to create user profile after signup
 export async function createUserProfile(user: any) {

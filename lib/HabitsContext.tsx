@@ -22,6 +22,8 @@ interface HabitsState {
 type HabitsAction = 
   | { type: 'ADD_HABIT'; payload: Omit<Habit, 'id' | 'dateCreated' | 'streak' | 'completions'> }
   | { type: 'DELETE_HABIT'; payload: string }
+  | { type: 'DELETE_HABIT_SUCCESS'; payload: string }
+  | { type: 'DELETE_HABIT_ERROR'; payload: { habitId: string; error: string } }
   | { type: 'TOGGLE_COMPLETION'; payload: { habitId: string; date: string } }
   | { type: 'LOAD_HABITS'; payload: Habit[] }
   | { type: 'SET_LOADING'; payload: boolean };
@@ -29,6 +31,7 @@ type HabitsAction =
 const HabitsContext = createContext<{
   state: HabitsState;
   dispatch: React.Dispatch<HabitsAction>;
+  deleteHabit: (habitId: string) => Promise<{ success: boolean; error?: string }>;
 } | null>(null);
 
 const habitsReducer = (state: HabitsState, action: HabitsAction): HabitsState => {
@@ -47,10 +50,23 @@ const habitsReducer = (state: HabitsState, action: HabitsAction): HabitsState =>
       };
     
     case 'DELETE_HABIT':
+      // Optimistically remove from UI
       return {
         ...state,
         habits: state.habits.filter(habit => habit.id !== action.payload)
       };
+    
+    case 'DELETE_HABIT_SUCCESS':
+      // Confirmation that deletion was successful
+      return {
+        ...state,
+        habits: state.habits.filter(habit => habit.id !== action.payload)
+      };
+    
+    case 'DELETE_HABIT_ERROR':
+      // Re-add the habit if deletion failed
+      console.error('Failed to delete habit:', action.payload.error);
+      return state; // Keep the habit in the list since deletion failed
     
     case 'TOGGLE_COMPLETION':
       return {
@@ -104,6 +120,40 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [state, dispatch] = useReducer(habitsReducer, { habits: [], loading: false });
   const { user } = useUser();
 
+  // Function to delete habit from Supabase
+  const deleteHabit = async (habitId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user?.id) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      // Optimistically remove from UI
+      dispatch({ type: 'DELETE_HABIT', payload: habitId });
+
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('habits')
+        .delete()
+        .eq('id', habitId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('❌ Error deleting habit from Supabase:', error);
+        dispatch({ type: 'DELETE_HABIT_ERROR', payload: { habitId, error: error.message } });
+        return { success: false, error: error.message };
+      }
+
+      // Confirm successful deletion
+      dispatch({ type: 'DELETE_HABIT_SUCCESS', payload: habitId });
+      return { success: true };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Unexpected error deleting habit:', err);
+      dispatch({ type: 'DELETE_HABIT_ERROR', payload: { habitId, error: errorMessage } });
+      return { success: false, error: errorMessage };
+    }
+  };
+
   // Load habits from Supabase when user is available
   useEffect(() => {
     if (!user?.id) {
@@ -152,7 +202,7 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [user?.id]);
 
   return (
-    <HabitsContext.Provider value={{ state, dispatch }}>
+    <HabitsContext.Provider value={{ state, dispatch, deleteHabit }}>
       {children}
     </HabitsContext.Provider>
   );

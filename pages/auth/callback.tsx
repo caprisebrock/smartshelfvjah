@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { supabase } from "../../lib/supabaseClient";
+import { createUserProfile } from "../../lib/createUserProfile";
 import { Target } from "lucide-react";
 
 export default function AuthCallback() {
@@ -38,6 +39,25 @@ export default function AuthCallback() {
           .select('name, goal_focus')
           .eq('id', data.session.user.id)
           .single();
+
+        // If no profile exists (new OAuth user), create one
+        if (profileError && profileError.code === 'PGRST116') {
+          setStatus("Creating your profile...");
+          console.log('🟡 No profile found, creating one for OAuth user');
+          
+          const profileResult = await createUserProfile(supabase, data.session.user);
+          if (profileResult.error) {
+            console.error('Failed to create OAuth user profile:', profileResult.error);
+            setError('Failed to set up your account. Please try again.');
+            setTimeout(() => router.replace('/login'), 3000);
+            return;
+          }
+          
+          // Profile created, redirect to onboarding
+          setStatus("Welcome! Let's complete your profile setup...");
+          setTimeout(() => router.replace('/onboarding/step1'), 1500);
+          return;
+        }
 
         if (profileError && profileError.code !== 'PGRST116') {
           console.error('Profile check error:', profileError);

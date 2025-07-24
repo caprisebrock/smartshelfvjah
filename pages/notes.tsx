@@ -110,7 +110,7 @@ export default function NotesPage() {
         <meta name="description" content="Log your business and marketing insights" />
       </Head>
       <div className="min-h-screen bg-gray-50 animate-fadeIn">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header with back button */}
           <div className="flex items-center gap-4 mb-8 animate-slideIn">
             <BackButton />
@@ -197,10 +197,12 @@ export default function NotesPage() {
                       : `No notes found with "${filterTone}" tone. Try a different filter or create some notes first.`
                     }
                   </p>
-                  <Link href="/my-learning" className="btn-primary group">
-                    <Plus className="w-5 h-5 mr-2" />
-                    Add Your First Resource
-                  </Link>
+                  <div className="flex justify-center w-full">
+                    <Link href="/my-learning" className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-3 rounded-full w-fit flex items-center justify-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 mx-auto group">
+                      <Plus className="w-5 h-5" />
+                      Add Your First Resource
+                    </Link>
+                  </div>
                 </div>
               </div>
             ) : (

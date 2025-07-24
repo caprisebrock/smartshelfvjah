@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
 import '../styles/globals.css';
 import { HabitsProvider } from '../lib/HabitsContext';
+import { ThemeProvider } from '../lib/ThemeContext';
 import Layout from '../components/Layout';
 import AuthWrapper from '../components/AuthWrapper';
 import { useRouter } from 'next/router';
@@ -43,12 +44,14 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
   
   return (
-    <HabitsProvider>
-      <AuthWrapper>
-        <Layout showSidebar={showSidebar}>
-          <Component {...pageProps} />
-        </Layout>
-      </AuthWrapper>
-    </HabitsProvider>
+    <ThemeProvider>
+      <HabitsProvider>
+        <AuthWrapper>
+          <Layout showSidebar={showSidebar}>
+            <Component {...pageProps} />
+          </Layout>
+        </AuthWrapper>
+      </HabitsProvider>
+    </ThemeProvider>
   );
 } 

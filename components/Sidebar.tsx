@@ -46,7 +46,7 @@ export default function Sidebar() {
       try {
         const { data } = await supabase
           .from('app_users')
-          .select('name, avatar_url, color')
+          .select('name, avatar_emoji, avatar_color')
           .eq('id', user.id)
           .single()
         
@@ -66,7 +66,7 @@ export default function Sidebar() {
 
 
   return (
-    <aside className="w-64 bg-gradient-to-b from-white to-gray-50 border-r border-gray-200 flex-shrink-0 h-screen overflow-y-auto">
+    <aside className="w-64 bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 h-screen overflow-y-auto">
       <div className="p-6">
         {/* Logo/Brand */}
         <div className="mb-8">
@@ -75,8 +75,8 @@ export default function Sidebar() {
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">SmartShelf</h1>
-              <p className="text-sm text-gray-500">Learning Tracker</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">SmartShelf</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Learning Tracker</p>
             </div>
           </div>
         </div>
@@ -209,10 +209,10 @@ export default function Sidebar() {
                 ) : (
                   <div 
                     className="w-10 h-10 rounded-full flex items-center justify-center shadow-sm border-2 border-white"
-                    style={{ backgroundColor: userProfile?.color || '#6b7280' }}
+                    style={{ backgroundColor: userProfile?.avatar_color || '#6b7280' }}
                   >
-                    {userProfile?.avatar_url ? (
-                      <span className="text-lg">{userProfile.avatar_url}</span>
+                    {userProfile?.avatar_emoji ? (
+                      <span className="text-lg">{userProfile.avatar_emoji}</span>
                     ) : (
                       <span className="text-lg">❓</span>
                     )}

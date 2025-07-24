@@ -268,7 +268,7 @@ export default function Dashboard() {
 
             {/* Last Active Resource */}
             <div className="card-gradient">
-              <div className="p-6">
+              <div className="p-6 flex flex-col min-h-fit overflow-visible">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                     <Clock className="w-6 h-6 text-purple-600" />
@@ -279,7 +279,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 {lastActiveResource ? (
-                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-200">
+                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-200 flex flex-col flex-1">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="text-4xl bg-white rounded-2xl w-16 h-16 flex items-center justify-center shadow-lg">
                         {lastActiveResource.emoji || getFormatEmoji(lastActiveResource.type)}
@@ -305,20 +305,22 @@ export default function Dashboard() {
                         ></div>
                       </div>
                     </div>
-                    <div className="text-xs text-purple-600 mb-4">
+                    <div className="text-xs text-purple-600 mb-6">
                       Last active {formatTimeAgo(lastActiveResource.lastActive)}
                     </div>
-                    <Link
-                      href={`/resource/${lastActiveResource.id}`}
-                      className="btn-primary w-full group"
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Resume Learning
-                      <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
-                    </Link>
+                    <div className="mt-auto flex justify-center">
+                      <Link
+                        href={`/resource/${lastActiveResource.id}`}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-3 rounded-full w-fit flex items-center justify-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 mx-auto"
+                      >
+                        <Play className="w-4 h-4" />
+                        Resume Learning
+                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      </Link>
+                    </div>
                   </div>
                 ) : (
-                  <div className="bg-gray-50 rounded-2xl p-8 text-center text-gray-500 border-2 border-dashed border-gray-200">
+                  <div className="bg-gray-50 rounded-2xl p-8 text-center text-gray-500 border-2 border-dashed border-gray-200 flex-1">
                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-lg font-medium">No resources tracked yet</p>
                   </div>
@@ -330,21 +332,23 @@ export default function Dashboard() {
           {/* Section 4: Empty State Habit Card (if no habits) */}
           {!hasHabits && (
             <div className="max-w-lg mx-auto text-center mb-16 animate-fadeIn" style={{ animationDelay: '0.6s' }}>
-              <div className="card-gradient">
-                <div className="p-6">
+              <div className="card-gradient overflow-visible">
+                <div className="p-8 flex flex-col items-center min-h-fit">
                   <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                     <Target className="w-10 h-10 text-white" />
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 mb-4">Start Building Better Habits</h2>
-                  <p className="text-gray-600 mb-6 leading-relaxed">Track what matters to you, one day at a time. Create personalized habits and watch your progress grow.</p>
-                  <Link 
-                    href="/add-habit"
-                    className="btn-primary group"
-                  >
-                    <Target className="w-5 h-5 mr-2" />
-                    Add First Habit
-                    <Sparkles className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-all" />
-                  </Link>
+                  <p className="text-gray-600 mb-8 leading-relaxed">Track what matters to you, one day at a time. Create personalized habits and watch your progress grow.</p>
+                  <div className="flex justify-center w-full">
+                    <Link 
+                      href="/add-habit"
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-3 rounded-full w-fit flex items-center justify-center gap-2 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 mx-auto group"
+                    >
+                      <Target className="w-5 h-5" />
+                      Add First Habit
+                      <Sparkles className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

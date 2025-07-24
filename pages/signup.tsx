@@ -6,12 +6,14 @@ import { supabase } from '../lib/supabaseClient'
 import { createUserProfile } from '../lib/createUserProfile'
 import { useUser } from '../lib/useUser'
 import { Target, Mail, Lock, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
+import GoogleSignInButton from '../components/GoogleSignInButton'
 
 export default function Signup() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [googleError, setGoogleError] = useState('')
   const [success, setSuccess] = useState('')
   const router = useRouter()
   const { user } = useUser()
@@ -27,6 +29,7 @@ export default function Signup() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setGoogleError('')
     setSuccess('')
 
     try {
@@ -77,6 +80,11 @@ export default function Signup() {
     }
   }
 
+  const handleGoogleError = (errorMessage: string) => {
+    setGoogleError(errorMessage)
+    setError('') // Clear email/password error when Google error occurs
+  }
+
   // Show loading while checking if user is already authenticated
   if (user) {
     return (
@@ -111,11 +119,11 @@ export default function Signup() {
           {/* Signup Form */}
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
             <form onSubmit={handleSignup} className="space-y-6">
-              {/* Error Message */}
-              {error && (
+              {/* Error Messages */}
+              {(error || googleError) && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                  <p className="text-red-700 text-sm">{error}</p>
+                  <p className="text-red-700 text-sm">{error || googleError}</p>
                 </div>
               )}
 
@@ -192,6 +200,26 @@ export default function Signup() {
                 )}
               </button>
             </form>
+
+            {/* Divider */}
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Or continue with</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Google Sign-In Button */}
+            <div className="mt-6">
+              <GoogleSignInButton 
+                disabled={loading}
+                onError={handleGoogleError}
+              />
+            </div>
 
             {/* Login Link */}
             <div className="mt-6 text-center">

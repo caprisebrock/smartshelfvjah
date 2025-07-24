@@ -48,13 +48,13 @@ export default function OnboardingStep1() {
   const [formData, setFormData] = useState({
     name: '',
     timezone: 'UTC',
-    avatar_emoji: '👤',
+    emoji: '👤',
     color: presetColors[0]?.value || '#2563eb'
   })
 
   // Extract individual variables for compatibility with the save function
   const fullName = formData.name
-  const selectedEmoji = formData.avatar_emoji
+  const selectedEmoji = formData.emoji
   const selectedColor = formData.color
   const selectedTimezone = formData.timezone
   const selectedGoal = null // will be set in step 2
@@ -80,7 +80,7 @@ export default function OnboardingStep1() {
       try {
         const { data, error: fetchError } = await supabase
           .from('app_users')
-          .select('name, timezone, avatar_url, color')
+          .select('name, timezone, emoji, color')
           .eq('id', user.id)
           .single()
         
@@ -94,7 +94,7 @@ export default function OnboardingStep1() {
             ...prev,
             name: data.name || '',
             timezone: data.timezone || prev.timezone,
-            avatar_emoji: data.avatar_url || '👤',
+            emoji: data.emoji || '👤',
             color: data.color || '#2563eb'
           }))
         }
@@ -114,7 +114,7 @@ export default function OnboardingStep1() {
   }, [authLoading, user, router])
 
   const handleEmojiSelect = (emojiData: any) => {
-    setFormData(prev => ({ ...prev, avatar_emoji: emojiData.emoji }))
+    setFormData(prev => ({ ...prev, emoji: emojiData.emoji }))
     setShowEmojiPicker(false)
   }
 
@@ -130,7 +130,7 @@ export default function OnboardingStep1() {
 
   const validateForm = () => {
     return formData.name.trim().length > 0 && 
-           formData.avatar_emoji && 
+           formData.emoji && 
            formData.color
   }
 
@@ -139,10 +139,19 @@ export default function OnboardingStep1() {
 
     // 1 Get current auth user
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (!user?.id || authErr) {
-      console.error("AUTH ERROR:", authErr);
-      alert("Authentication failed. Sign in again.");
+    
+    if (authErr) {
+      console.error("❌ [OnboardingStep1] Auth error:", authErr);
+      alert("Authentication failed. Please sign in again.");
       setLoading(false);
+      return;
+    }
+    
+    if (!user?.id) {
+      console.error("❌ [OnboardingStep1] User is not authenticated — redirecting to signin");
+      alert("You must be signed in to complete onboarding.");
+      setLoading(false);
+      router.push('/signin');
       return;
     }
     console.log("AUTH USER ID →", user.id);  // ← copy this ID to compare in Supabase UI
@@ -218,7 +227,7 @@ export default function OnboardingStep1() {
   return (
     <>
       <Head>
-        <title>Let's Get to Know You - SmartShelf</title>
+        <title>Let&apos;s Get to Know You - SmartShelf</title>
         <meta name="description" content="Set up your profile to get started with SmartShelf" />
       </Head>
 
@@ -241,7 +250,7 @@ export default function OnboardingStep1() {
               <div className="w-16 h-16 bg-gradient-to-r from-emerald-400 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <User className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">Let's get to know you</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Let&apos;s get to know you</h1>
               <p className="text-gray-600">Tell us a bit about yourself to personalize your experience</p>
             </div>
 
@@ -303,7 +312,7 @@ export default function OnboardingStep1() {
                     className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-gray-200"
                     style={{ backgroundColor: formData.color }}
                   >
-                    <span className="text-3xl">{formData.avatar_emoji}</span>
+                    <span className="text-3xl">{formData.emoji}</span>
                   </div>
                   <div className="text-sm text-gray-600">
                     <div className="font-medium">Your avatar preview</div>
@@ -322,8 +331,8 @@ export default function OnboardingStep1() {
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl hover:border-emerald-500 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 transition-all duration-200 flex items-center justify-center"
                         disabled={loading}
                       >
-                        {formData.avatar_emoji ? (
-                          <span className="text-2xl">{formData.avatar_emoji}</span>
+                        {formData.emoji ? (
+                          <span className="text-2xl">{formData.emoji}</span>
                         ) : (
                           <Smile className="w-6 h-6 text-gray-400" />
                         )}

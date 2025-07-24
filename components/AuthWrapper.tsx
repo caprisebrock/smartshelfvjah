@@ -65,6 +65,9 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     // Don't redirect if we're still loading or on a public page
     if (loading || isPublicPage) return
 
+    // Special handling for auth callback - let it manage its own auth flow
+    if (router.pathname === '/auth/callback') return
+
     // Session state handling:
     // - loading === true: show loading screen (handled above)
     // - user === null: redirect to login

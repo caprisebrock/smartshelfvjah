@@ -404,7 +404,7 @@ export default function ResourceDetailPage() {
                 </div>
               ) : (
                 <div className="text-gray-500 italic">
-                  No notes yet. Click "Edit" to add your thoughts and insights.
+                  No notes yet. Click &quot;Edit&quot; to add your thoughts and insights.
                 </div>
               )}
             </div>

@@ -41,13 +41,17 @@ const timezones = [
 ]
 
 export default function ProfileForm({ initialUser, initialProfile, onCancel, onSave }: ProfileFormProps) {
+  // Safely extract avatar data with fallbacks
+  const avatarEmoji = initialProfile?.emoji || '❔';
+  const avatarColor = initialProfile?.color || '#f3f4f6';
+
   const [formData, setFormData] = useState({
     name: initialUser?.user_metadata?.name || '',
     goal_focus: initialProfile?.goal_focus || '',
     timezone: initialProfile?.timezone || 'UTC',
     marketing_opt_in: initialProfile?.marketing_opt_in || false,
-    avatar_emoji: initialProfile?.avatar_url || initialUser?.user_metadata?.avatar_url || '👤',
-    avatar_color: initialProfile?.color || '#2563eb',
+    emoji: avatarEmoji,
+    color: avatarColor,
   })
   
   const [saving, setSaving] = useState(false)
@@ -69,8 +73,8 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
       newErrors.goal_focus = 'Goal must be 100 characters or less'
     }
     
-    if (!formData.avatar_emoji) {
-      newErrors.avatar_emoji = 'Please select an emoji for your avatar'
+    if (!formData.emoji) {
+      newErrors.emoji = 'Please select an emoji for your avatar'
     }
     
     setErrors(newErrors)
@@ -88,23 +92,31 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
       // Get the current authenticated user using supabase.auth.getUser()
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
-      if (!user || authError) {
+      if (authError) {
+        console.error('❌ [ProfileForm] Auth error during save:', authError)
         alert('Authentication error. Please sign in again.')
+        setSaving(false)
+        return
+      }
+      
+      if (!user) {
+        console.error('❌ [ProfileForm] User is not authenticated — cannot save profile')
+        alert('You must be signed in to save your profile. Please sign in again.')
         setSaving(false)
         return
       }
 
       console.log('✅ Saving profile for user ID:', user.id)
 
-      // Update app_users table
+      // Update app_users table with correct field names
       const { error: profileError } = await supabase
         .from('app_users')
         .update({
           goal_focus: formData.goal_focus,
           timezone: formData.timezone,
           marketing_opt_in: formData.marketing_opt_in,
-          avatar_url: formData.avatar_emoji,
-          color: formData.avatar_color,
+          emoji: formData.emoji,
+          color: formData.color,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id)
@@ -117,7 +129,7 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
       const { error: authUpdateError } = await supabase.auth.updateUser({
         data: {
           name: formData.name,
-          avatar_url: formData.avatar_emoji, // Store emoji as avatar_url for compatibility
+          emoji: formData.emoji, // Store emoji in user metadata
         }
       })
 
@@ -217,13 +229,13 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                 Avatar *
               </label>
               
-              {/* Avatar Preview */}
+              {/* Avatar Preview - Fixed with safe fallbacks */}
               <div className="flex items-center gap-4 mb-4">
-                <div 
-                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-gray-200"
-                  style={{ backgroundColor: formData.avatar_color }}
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center border"
+                  style={{ backgroundColor: formData.color || '#f3f4f6' }}
                 >
-                  <span className="text-2xl">{formData.avatar_emoji}</span>
+                  <span className="text-2xl">{formData.emoji || '❔'}</span>
                 </div>
                 <div className="text-sm text-gray-600">
                   <div className="font-medium">Your avatar preview</div>
@@ -240,11 +252,11 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                       type="button"
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                       className={`w-full px-4 py-3 border rounded-xl hover:border-blue-500 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition-all duration-200 flex items-center justify-center ${
-                        errors.avatar_emoji ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        errors.emoji ? 'border-red-300 bg-red-50' : 'border-gray-300'
                       }`}
                     >
-                      {formData.avatar_emoji ? (
-                        <span className="text-2xl">{formData.avatar_emoji}</span>
+                      {formData.emoji ? (
+                        <span className="text-2xl">{formData.emoji}</span>
                       ) : (
                         <Smile className="w-6 h-6 text-gray-400" />
                       )}
@@ -254,7 +266,7 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                       <div className="absolute top-full mt-2 z-50 bg-white rounded-2xl shadow-lg ring-1 ring-gray-100 p-4">
                         <EmojiPicker
                           onEmojiClick={(emojiData) => {
-                            handleInputChange('avatar_emoji', emojiData.emoji)
+                            handleInputChange('emoji', emojiData.emoji)
                             setShowEmojiPicker(false)
                           }}
                         />
@@ -274,7 +286,7 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                     >
                       <div 
                         className="w-6 h-6 rounded-full border border-gray-200"
-                        style={{ backgroundColor: formData.avatar_color }}
+                        style={{ backgroundColor: formData.color }}
                       />
                     </button>
                     
@@ -286,11 +298,11 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                               key={color.value}
                               type="button"
                               onClick={() => {
-                                handleInputChange('avatar_color', color.value)
+                                handleInputChange('color', color.value)
                                 setShowColorPicker(false)
                               }}
                               className={`w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 ${
-                                formData.avatar_color === color.value 
+                                formData.color === color.value 
                                   ? 'border-gray-800 scale-110 shadow-lg' 
                                   : 'border-gray-300 hover:border-gray-400'
                               }`}
@@ -306,7 +318,7 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                             value={customColor}
                             onChange={(e) => {
                               setCustomColor(e.target.value)
-                              handleInputChange('avatar_color', e.target.value)
+                              handleInputChange('color', e.target.value)
                             }}
                             className="w-full h-8 rounded border border-gray-200 cursor-pointer"
                           />
@@ -317,10 +329,10 @@ export default function ProfileForm({ initialUser, initialProfile, onCancel, onS
                 </div>
               </div>
 
-              {errors.avatar_emoji && (
+              {errors.emoji && (
                 <div className="mt-2 flex items-center gap-2 text-red-600 text-sm">
                   <AlertCircle className="w-4 h-4" />
-                  {errors.avatar_emoji}
+                  {errors.emoji}
                 </div>
               )}
             </div>

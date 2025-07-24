@@ -69,9 +69,19 @@ export default function AddHabitPage() {
     try {
       // Get authenticated user directly from Supabase
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!user || userError) {
+      
+      if (userError) {
+        console.error('❌ [AddHabit] Auth error:', userError);
         alert("Authentication error. Please sign in again.");
         setLoading(false);
+        return;
+      }
+      
+      if (!user) {
+        console.error('❌ [AddHabit] User is not authenticated — redirecting to signin');
+        alert("You must be signed in to create habits.");
+        setLoading(false);
+        router.push('/signin');
         return;
       }
 

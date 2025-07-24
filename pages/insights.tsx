@@ -59,7 +59,7 @@ export default function InsightsPage() {
           <h2 className="text-lg font-semibold mb-4">💡 Motivation</h2>
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 text-center">
             <div className="text-2xl font-bold text-purple-800 mb-2">
-              "Discipline &gt; Motivation"
+              &quot;Discipline &gt; Motivation&quot;
             </div>
             <div className="text-sm text-purple-600">
               Small consistent actions lead to big results

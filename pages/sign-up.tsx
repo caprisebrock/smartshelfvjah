@@ -57,9 +57,9 @@ export default function SignUpPage() {
 
       if (user) {
         // Create user profile in the app_users table
-        const { error: insertErr } = await createUserProfile(supabase, user)
-        if (insertErr) {
-          console.error('❌ createUserProfile error:', insertErr.message)
+        const profileResult = await createUserProfile(supabase, user)
+        if (!profileResult.success) {
+          console.error('❌ createUserProfile error:', profileResult.error?.message)
         }
 
         if (user.email_confirmed_at) {

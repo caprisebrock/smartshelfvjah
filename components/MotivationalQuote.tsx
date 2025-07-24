@@ -82,11 +82,11 @@ export default function MotivationalQuote() {
         </div>
         
         <div className="relative">
-          <div className="absolute -left-2 -top-2 text-6xl text-white/20 font-serif">"</div>
+          <div className="absolute -left-2 -top-2 text-6xl text-white/20 font-serif">&quot;</div>
           <p className={`text-xl font-medium leading-relaxed pl-8 transition-all duration-300 ${isRefreshing ? 'opacity-50 blur-sm' : 'opacity-100'}`}>
             {quote}
           </p>
-          <div className="absolute -right-2 -bottom-2 text-6xl text-white/20 font-serif">"</div>
+          <div className="absolute -right-2 -bottom-2 text-6xl text-white/20 font-serif">&quot;</div>
         </div>
         
         {/* Subtle animation indicator */}

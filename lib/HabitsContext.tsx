@@ -106,12 +106,17 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Load habits from Supabase when user is available
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log('👤 [HabitsContext] No authenticated user, skipping habits load');
+      return;
+    }
 
     const loadHabits = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       
       try {
+        console.log('🔍 [HabitsContext] Loading habits for user:', user.id);
+        
         const { data, error } = await supabase
           .from('habits')
           .select('*')
@@ -119,7 +124,8 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('Error loading habits:', error);
+          console.error('❌ [HabitsContext] Error loading habits:', error);
+          dispatch({ type: 'SET_LOADING', payload: false });
           return;
         }
 

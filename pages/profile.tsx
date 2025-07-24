@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useUser } from '../lib/useUser'
 import { supabase } from '../lib/supabaseClient'
 import ProfileForm from '../components/ProfileForm'
-import { ArrowLeft, User, Mail, Calendar, Target, Crown, Clock, Sparkles, Edit3, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, User, Mail, Calendar, Target, Crown, Sparkles, Edit3, CheckCircle2 } from 'lucide-react'
 
 interface UserProfile {
   goal_focus?: string
   is_premium?: boolean
-  last_active?: string
   timezone?: string
   marketing_opt_in?: boolean
+  emoji?: string
+  color?: string
 }
 
 export default function Profile() {
+  const router = useRouter()
   const { user, loading: authLoading } = useUser()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -28,27 +31,35 @@ export default function Profile() {
       if (!user?.id) return
 
       try {
+        console.log('🔍 [Profile Page] Fetching profile for user:', user?.id);
+        console.log('🔍 [Profile Page] User object:', user);
+        
         const { data, error: profileError } = await supabase
           .from('app_users')
-          .select('*') // ⛔ TEMP: fetch all fields to ensure nothing is breaking
+          .select('goal_focus, is_premium, timezone, marketing_opt_in, emoji, color') // Include avatar fields
           .eq('id', user.id)
           .single()
 
-        console.log('🧪 User ID from auth:', user?.id);
-        console.log('🧪 Supabase profile data:', data);
-        console.log('🧪 Supabase profile error:', profileError);
+        console.log('🧪 [Profile Page] User ID from auth:', user?.id);
+        console.log('🧪 [Profile Page] Supabase profile data:', data);
+        console.log('🧪 [Profile Page] Supabase profile error:', profileError);
 
         if (profileError) {
-          console.error('Profile fetch error:', profileError)
-          setError('Failed to load profile data')
+          console.error('❌ [Profile Page] Profile fetch error:', profileError)
+          
+          // Enhanced error handling with specific messages
+          if (profileError.code === 'PGRST116') {
+            setError('No profile found. This usually means your account setup is incomplete. Please try signing out and signing in again.')
+          } else {
+            setError(`Failed to load profile data: ${profileError.message}`)
+          }
         } else {
           setProfile(data || {})
+          console.log('✅ [Profile Page] Profile loaded successfully:', data)
         }
-        // ✅ After confirming the query works, revert to this safer form:
-        // .select('goal_focus, is_premium, last_active, timezone, marketing_opt_in')
       } catch (err) {
-        console.error('Unexpected error:', err)
-        setError('An unexpected error occurred')
+        console.error('❌ [Profile Page] Unexpected error:', err)
+        setError('An unexpected error occurred while loading your profile')
       } finally {
         setProfileLoading(false)
       }
@@ -66,8 +77,17 @@ export default function Profile() {
       // Get the current authenticated user using supabase.auth.getUser()
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
       
-      if (!authUser || authError) {
+      if (authError) {
+        console.error('❌ [Profile] Auth error during premium upgrade:', authError)
         alert('Authentication error. Please sign in again.')
+        router.push('/signin')
+        return
+      }
+      
+      if (!authUser) {
+        console.error('❌ [Profile] User is not authenticated — redirecting to signin')
+        alert('You must be signed in to upgrade to premium.')
+        router.push('/signin')
         return
       }
 
@@ -100,8 +120,17 @@ export default function Profile() {
       // Get the current authenticated user using supabase.auth.getUser()
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
       
-      if (!authUser || authError) {
-        console.error('Auth error during profile save:', authError)
+      if (authError) {
+        console.error('❌ [Profile] Auth error during profile save:', authError)
+        alert('Authentication error. Please sign in again.')
+        router.push('/signin')
+        return
+      }
+      
+      if (!authUser) {
+        console.error('❌ [Profile] User is not authenticated — redirecting to signin')
+        alert('You must be signed in to save your profile.')
+        router.push('/signin')
         return
       }
 
@@ -110,7 +139,7 @@ export default function Profile() {
       // Refetch profile data to get updated values
       const { data } = await supabase
         .from('app_users')
-        .select('goal_focus, is_premium, last_active, timezone, marketing_opt_in')
+        .select('goal_focus, is_premium, timezone, marketing_opt_in, emoji, color')
         .eq('id', authUser.id)
         .single()
       
@@ -154,19 +183,7 @@ export default function Profile() {
     })
   }
 
-  // Format last active helper
-  const formatLastActive = (dateString?: string) => {
-    if (!dateString) return 'Never'
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return 'Today'
-    if (diffDays === 2) return 'Yesterday'
-    if (diffDays <= 7) return `${diffDays - 1} days ago`
-    return formatDate(dateString)
-  }
+
 
   return (
     <>
@@ -189,9 +206,17 @@ export default function Profile() {
 
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <User className="w-8 h-8 text-white" />
-              </div>
+              {/* User Avatar - Show actual emoji and color or fallback */}
+              {profileLoading ? (
+                <div className="w-16 h-16 rounded-2xl bg-gray-200 animate-pulse shadow-lg"></div>
+              ) : (
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg border"
+                  style={{ backgroundColor: profile?.color || '#f3f4f6' }}
+                >
+                  <span className="text-2xl">{profile?.emoji || '❔'}</span>
+                </div>
+              )}
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Your Profile</h1>
                 <p className="text-gray-600 mt-1">Manage your account and preferences</p>
@@ -278,16 +303,7 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    {/* Last Active */}
-                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
-                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                        <Clock className="w-5 h-5 text-gray-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">Last Active</div>
-                        <div className="text-gray-600">{formatLastActive(profile?.last_active)}</div>
-                      </div>
-                    </div>
+
 
                     {/* Goal Focus */}
                     <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">

@@ -214,10 +214,19 @@ export default function AddResourcePage() {
     try {
       // 1️⃣ **Get the authenticated user**
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!user || userError) {
-        console.error("❌ Auth error:", userError);
-        alert("You must be signed in.");
+      
+      if (userError) {
+        console.error("❌ [AddResource] Auth error:", userError);
+        alert("Authentication error. Please sign in again.");
         setSubmitting(false);
+        return;
+      }
+      
+      if (!user) {
+        console.error("❌ [AddResource] User is not authenticated — redirecting to signin");
+        alert("You must be signed in to add resources.");
+        setSubmitting(false);
+        router.push('/signin');
         return;
       }
 

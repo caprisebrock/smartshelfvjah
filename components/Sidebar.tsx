@@ -44,17 +44,25 @@ export default function Sidebar() {
       
       setProfileLoading(true)
       try {
-        const { data } = await supabase
+        console.log('🔍 [Sidebar] Fetching profile for user:', user.id);
+        
+        const { data, error } = await supabase
           .from('app_users')
-          .select('name, avatar_emoji, avatar_color')
+          .select('name, emoji, color')
           .eq('id', user.id)
           .single()
         
-        if (data) {
+        console.log('🧪 [Sidebar] Profile data:', data);
+        console.log('🧪 [Sidebar] Profile error:', error);
+        
+        if (error) {
+          console.error('❌ [Sidebar] Error fetching user profile:', error)
+        } else if (data) {
           setUserProfile(data)
+          console.log('✅ [Sidebar] Profile loaded successfully:', data)
         }
       } catch (error) {
-        console.error('Error fetching user profile:', error)
+        console.error('❌ [Sidebar] Unexpected error fetching user profile:', error)
       } finally {
         setProfileLoading(false)
       }
@@ -209,10 +217,10 @@ export default function Sidebar() {
                 ) : (
                   <div 
                     className="w-10 h-10 rounded-full flex items-center justify-center shadow-sm border-2 border-white"
-                    style={{ backgroundColor: userProfile?.avatar_color || '#6b7280' }}
+                    style={{ backgroundColor: userProfile?.color || '#6b7280' }}
                   >
-                    {userProfile?.avatar_emoji ? (
-                      <span className="text-lg">{userProfile.avatar_emoji}</span>
+                    {userProfile?.emoji ? (
+                      <span className="text-lg">{userProfile.emoji}</span>
                     ) : (
                       <span className="text-lg">❓</span>
                     )}

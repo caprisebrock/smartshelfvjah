@@ -38,7 +38,6 @@ interface LearningResource {
   progress_minutes: number;
   category_tags: string[];
   notification?: string;
-  last_active: string;
 }
 
 export default function MyLearningPage() {
@@ -53,9 +52,12 @@ export default function MyLearningPage() {
   useEffect(() => {
     const loadResources = async () => {
       if (!user?.id) {
+        console.log('👤 [MyLearning] No authenticated user, skipping resources load');
         setLoading(false);
         return;
       }
+      
+      console.log('🔍 [MyLearning] Loading resources for user:', user.id);
 
       try {
         const { data, error } = await supabase
@@ -214,8 +216,7 @@ export default function MyLearningPage() {
           </div>
         )}
         
-        <div className="text-xs text-gray-500 flex items-center justify-between">
-          <span>Last active: {new Date(res.last_active).toLocaleDateString()}</span>
+        <div className="text-xs text-gray-500 flex items-center justify-end">
           <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium capitalize">
             {res.type}
           </div>

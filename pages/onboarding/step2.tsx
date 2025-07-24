@@ -94,7 +94,9 @@ export default function OnboardingStep2() {
     e.preventDefault()
     if (!validateForm()) return
     if (!user?.id) {
-      setError('User not authenticated. Please sign in.')
+      console.error('❌ [OnboardingStep2] User is not authenticated — redirecting to signin')
+      setError('You must be signed in to continue. Please sign in.')
+      router.push('/signin')
       return
     }
 
@@ -145,7 +147,7 @@ export default function OnboardingStep2() {
   return (
     <>
       <Head>
-        <title>What's Your Goal? - SmartShelf</title>
+        <title>What&apos;s Your Goal? - SmartShelf</title>
         <meta name="description" content="Tell us about your primary focus to personalize your experience" />
       </Head>
 
@@ -168,7 +170,7 @@ export default function OnboardingStep2() {
               <div className="w-16 h-16 bg-gradient-to-r from-emerald-400 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <Target className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">What's your main focus?</h1>
+              <h1 className="text-2xl font-bold text-gray-900">What&apos;s your main focus?</h1>
               <p className="text-gray-600">This helps us personalize your experience and suggest relevant habits</p>
             </div>
 

@@ -21,11 +21,11 @@ export async function createUserProfile(user: any) {
       id: user.id,
       email: user.email,
       name: user.user_metadata?.name || "",
-      avatar_url: user.user_metadata?.avatar_url || "",
+      emoji: user.user_metadata?.emoji || "👤",
+      color: user.user_metadata?.color || "#6b7280",
       is_premium: false,
       goal_focus: "",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      last_active: new Date().toISOString(),
     },
   ]);
 

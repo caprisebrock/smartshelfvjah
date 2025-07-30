@@ -3,14 +3,17 @@ import { useEffect } from 'react';
 import '../styles/globals.css';
 import { HabitsProvider } from '../lib/HabitsContext';
 import { ThemeProvider } from '../lib/ThemeContext';
+import { ToastProvider } from '../lib/ToastContext';
+import { ChatProvider } from '../lib/ChatContext';
 import Layout from '../components/Layout';
 import AuthWrapper from '../components/AuthWrapper';
+import Toast from '../components/Toast';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  // Sidebar only on dashboard and settings
+  // Sidebar only on dashboard and settings (AI Chat has its own layout)
   const showSidebar = router.pathname === '/' || router.pathname === '/settings';
   
   // Force sign-out when user closes tab/browser
@@ -45,13 +48,18 @@ export default function App({ Component, pageProps }: AppProps) {
   
   return (
     <ThemeProvider>
-      <HabitsProvider>
-        <AuthWrapper>
-          <Layout showSidebar={showSidebar}>
-            <Component {...pageProps} />
-          </Layout>
-        </AuthWrapper>
-      </HabitsProvider>
+      <ToastProvider>
+        <ChatProvider>
+          <HabitsProvider>
+            <AuthWrapper>
+              <Layout showSidebar={showSidebar}>
+                <Component {...pageProps} />
+              </Layout>
+              <Toast />
+            </AuthWrapper>
+          </HabitsProvider>
+        </ChatProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 } 

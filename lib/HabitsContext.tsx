@@ -25,6 +25,7 @@ type HabitsAction =
   | { type: 'DELETE_HABIT_SUCCESS'; payload: string }
   | { type: 'DELETE_HABIT_ERROR'; payload: { habitId: string; error: string } }
   | { type: 'TOGGLE_COMPLETION'; payload: { habitId: string; date: string } }
+  | { type: 'MARK_COMPLETE'; payload: { habitId: string; date: string } }
   | { type: 'LOAD_HABITS'; payload: Habit[] }
   | { type: 'SET_LOADING'; payload: boolean };
 
@@ -32,6 +33,7 @@ const HabitsContext = createContext<{
   state: HabitsState;
   dispatch: React.Dispatch<HabitsAction>;
   deleteHabit: (habitId: string) => Promise<{ success: boolean; error?: string }>;
+  markHabitComplete: (habitId: string, date?: string) => Promise<{ success: boolean; error?: string; alreadyCompleted?: boolean }>;
 } | null>(null);
 
 const habitsReducer = (state: HabitsState, action: HabitsAction): HabitsState => {
@@ -80,6 +82,41 @@ const habitsReducer = (state: HabitsState, action: HabitsAction): HabitsState =>
               updatedCompletions = habit.completions.map(c =>
                 c.date === action.payload.date 
                   ? { ...c, completed: !c.completed }
+                  : c
+              );
+            } else {
+              updatedCompletions = [
+                ...habit.completions,
+                { date: action.payload.date, completed: true }
+              ];
+            }
+            
+            return {
+              ...habit,
+              completions: updatedCompletions
+            };
+          }
+          return habit;
+        })
+      };
+
+    case 'MARK_COMPLETE':
+      return {
+        ...state,
+        habits: state.habits.map(habit => {
+          if (habit.id === action.payload.habitId) {
+            const existingCompletion = habit.completions.find(c => c.date === action.payload.date);
+            
+            // If already completed, don't change anything
+            if (existingCompletion?.completed) {
+              return habit;
+            }
+            
+            let updatedCompletions;
+            if (existingCompletion) {
+              updatedCompletions = habit.completions.map(c =>
+                c.date === action.payload.date 
+                  ? { ...c, completed: true }
                   : c
               );
             } else {
@@ -154,6 +191,63 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
+  // Function to mark habit as complete
+  const markHabitComplete = async (habitId: string, date?: string): Promise<{ success: boolean; error?: string; alreadyCompleted?: boolean }> => {
+    if (!user?.id) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const completionDate = date || new Date().toISOString().split('T')[0];
+
+    try {
+      // Check if already completed for today
+      const { data: existingCompletion, error: checkError } = await supabase
+        .from('habit_completions')
+        .select('*')
+        .eq('habit_id', habitId)
+        .eq('user_id', user.id)
+        .eq('date', completionDate)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('❌ Error checking existing completion:', checkError);
+        return { success: false, error: checkError.message };
+      }
+
+      if (existingCompletion) {
+        return { success: true, alreadyCompleted: true };
+      }
+
+      // Use upsert to insert or update completion record
+      const { error: upsertError } = await supabase
+        .from('habit_completions')
+        .upsert([
+          {
+            habit_id: habitId,
+            user_id: user.id,
+            date: completionDate,
+            status: 'complete'
+          }
+        ], {
+          onConflict: 'user_id,habit_id,date'
+        });
+
+      if (upsertError) {
+        console.error('❌ Error upserting habit completion:', upsertError);
+        return { success: false, error: upsertError.message };
+      }
+
+      // Update local state
+      dispatch({ type: 'MARK_COMPLETE', payload: { habitId, date: completionDate } });
+      
+      return { success: true };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('❌ Unexpected error marking habit complete:', err);
+      return { success: false, error: errorMessage };
+    }
+  };
+
   // Load habits from Supabase when user is available
   useEffect(() => {
     if (!user?.id) {
@@ -179,18 +273,73 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           return;
         }
 
+        // Load completions for all habits
+        const habitIds = (data || []).map(habit => habit.id);
+        let completionsData: any[] = [];
+        
+        if (habitIds.length > 0) {
+          const { data: completions, error: completionsError } = await supabase
+            .from('habit_completions')
+            .select('*')
+            .in('habit_id', habitIds)
+            .eq('user_id', user.id);
+
+          if (completionsError) {
+            console.error('❌ [HabitsContext] Error loading completions:', completionsError);
+          } else {
+            completionsData = completions || [];
+          }
+        }
+
         // Transform database habits to match our interface
-        const transformedHabits: Habit[] = (data || []).map(dbHabit => ({
-          id: dbHabit.id.toString(),
-          name: dbHabit.name,
-          emoji: dbHabit.emoji,
-          color: dbHabit.color,
-          frequency: dbHabit.frequency,
-          specificDays: dbHabit.specific_days || undefined,
-          dateCreated: dbHabit.created_at || new Date().toISOString(),
-          streak: 0, // TODO: Calculate from completions
-          completions: [] // TODO: Load completions from database
-        }));
+        const transformedHabits: Habit[] = (data || []).map(dbHabit => {
+          // Get completions for this habit
+          const habitCompletions = completionsData
+            .filter(c => c.habit_id === dbHabit.id)
+            .map(c => ({
+              date: c.date,
+              completed: c.status === 'complete'
+            }));
+
+          // Calculate streak from completions
+          const calculateStreak = (completions: { date: string; completed: boolean }[]) => {
+            const sortedCompletions = completions
+              .filter(c => c.completed)
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            if (sortedCompletions.length === 0) return 0;
+            
+            let streak = 0;
+            const today = new Date();
+            
+            for (let i = 0; i < sortedCompletions.length; i++) {
+              const completionDate = new Date(sortedCompletions[i].date);
+              const daysDiff = Math.floor((today.getTime() - completionDate.getTime()) / (1000 * 60 * 60 * 24));
+              
+              if (i === 0 && daysDiff <= 1) {
+                streak = 1;
+              } else if (i > 0 && daysDiff === i) {
+                streak++;
+              } else {
+                break;
+              }
+            }
+            
+            return streak;
+          };
+
+          return {
+            id: dbHabit.id.toString(),
+            name: dbHabit.name,
+            emoji: dbHabit.emoji,
+            color: dbHabit.color,
+            frequency: dbHabit.frequency,
+            specificDays: dbHabit.specific_days || undefined,
+            dateCreated: dbHabit.created_at || new Date().toISOString(),
+            streak: calculateStreak(habitCompletions),
+            completions: habitCompletions
+          };
+        });
 
         dispatch({ type: 'LOAD_HABITS', payload: transformedHabits });
       } catch (err) {
@@ -202,7 +351,7 @@ export const HabitsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [user?.id]);
 
   return (
-    <HabitsContext.Provider value={{ state, dispatch, deleteHabit }}>
+    <HabitsContext.Provider value={{ state, dispatch, deleteHabit, markHabitComplete }}>
       {children}
     </HabitsContext.Provider>
   );

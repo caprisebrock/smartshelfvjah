@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, Flame, CheckCircle, Circle } from 'lucide-react';
 import { Habit, useHabits } from '../lib/HabitsContext';
+import { useToast } from '../lib/ToastContext';
+import { useUser } from '../lib/useUser';
+import { supabase } from '../lib/supabaseClient';
 import DeleteHabitModal from './DeleteHabitModal';
 
 interface HabitCardProps {
@@ -8,9 +11,15 @@ interface HabitCardProps {
 }
 
 export default function HabitCard({ habit }: HabitCardProps) {
-  const { deleteHabit } = useHabits();
+  const { deleteHabit, markHabitComplete } = useHabits();
+  const { addToast } = useToast();
+  const { user } = useUser();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  const [completionData, setCompletionData] = useState<{ date: string; completed: boolean }[]>([]);
+  const [loadingCompletions, setLoadingCompletions] = useState(false);
+  const [previousStreak, setPreviousStreak] = useState(0);
 
   const handleDeleteClick = () => {
     setShowDeleteModal(true);
@@ -45,52 +54,121 @@ export default function HabitCard({ habit }: HabitCardProps) {
     return new Date().toISOString().split('T')[0];
   };
 
-  const handleToggleCompletion = () => {
-    const today = getTodayDate();
-    // Note: This would need to be updated to work with the new context structure
-    // For now, keeping the original dispatch call
-    // dispatch({
-    //   type: 'TOGGLE_COMPLETION',
-    //   payload: { habitId: habit.id, date: today }
-    // });
+  // Fetch completion data for the past 7 days
+  const fetchCompletionData = async () => {
+    if (!user?.id) return;
+    
+    setLoadingCompletions(true);
+    try {
+      // Calculate date 7 days ago
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 7 days including today
+      const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('habit_completions')
+        .select('date, status')
+        .eq('user_id', user.id)
+        .eq('habit_id', habit.id)
+        .gte('date', sevenDaysAgoString)
+        .order('date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching completion data:', error);
+        return;
+      }
+
+      // Create a map of completion data
+      const completionMap = new Map();
+      (data || []).forEach(completion => {
+        completionMap.set(completion.date, completion.status === 'complete');
+      });
+
+      // Generate array for last 7 days (today first, then going backwards)
+      const last7Days = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateString = date.toISOString().split('T')[0];
+        last7Days.push({
+          date: dateString,
+          completed: completionMap.get(dateString) || false
+        });
+      }
+
+      setCompletionData(last7Days);
+    } catch (err) {
+      console.error('Error fetching completion data:', err);
+    } finally {
+      setLoadingCompletions(false);
+    }
+  };
+
+  // Load completion data when component mounts or habit changes
+  useEffect(() => {
+    fetchCompletionData();
+  }, [user?.id, habit.id]);
+
+  // Refresh completion data after marking complete
+  const refreshCompletionData = async () => {
+    await fetchCompletionData();
+  };
+
+  const handleMarkComplete = async () => {
+    if (isMarkingComplete) return;
+    
+    setIsMarkingComplete(true);
+    try {
+      const result = await markHabitComplete(habit.id);
+      
+      if (result.success) {
+        if (result.alreadyCompleted) {
+          // Show "Already done" feedback
+          addToast('Already done for today! ✅', 'info');
+        } else {
+          // Show success toast
+          addToast('Marked as complete ✅', 'success');
+          
+          // Refresh completion data to update UI
+          await refreshCompletionData();
+          
+          // Check for new streak celebration
+          const newStreak = calculateStreak();
+          if (newStreak === 1 && previousStreak === 0) {
+            addToast('🎉 Great start! You\'ve begun a new streak!', 'success');
+          }
+        }
+      } else {
+        // Show error toast
+        addToast(`Failed to mark habit complete: ${result.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('❌ Unexpected error marking habit complete:', error);
+      addToast('An unexpected error occurred while marking the habit complete.', 'error');
+    } finally {
+      setIsMarkingComplete(false);
+    }
   };
 
   const getTodayCompletion = () => {
     const today = getTodayDate();
-    return habit.completions.find(c => c.date === today)?.completed || false;
+    return completionData.find(c => c.date === today)?.completed || false;
   };
 
   const getRecentCompletions = () => {
-    const last7Days = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateString = date.toISOString().split('T')[0];
-      const completion = habit.completions.find(c => c.date === dateString);
-      last7Days.push(completion?.completed || false);
-    }
-    return last7Days;
+    return completionData.map(c => c.completed);
   };
 
   const calculateStreak = () => {
-    const sortedCompletions = habit.completions
-      .filter(c => c.completed)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    if (sortedCompletions.length === 0) return 0;
-    
+    // Count consecutive completed days starting from today (index 0)
     let streak = 0;
-    const today = new Date();
     
-    for (let i = 0; i < sortedCompletions.length; i++) {
-      const completionDate = new Date(sortedCompletions[i].date);
-      const daysDiff = Math.floor((today.getTime() - completionDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (i === 0 && daysDiff <= 1) {
-        streak = 1;
-      } else if (i > 0 && daysDiff === i) {
+    for (let i = 0; i < completionData.length; i++) {
+      const completion = completionData[i];
+      if (completion.completed) {
         streak++;
       } else {
+        // Stop counting when we hit an incomplete day
         break;
       }
     }
@@ -101,6 +179,11 @@ export default function HabitCard({ habit }: HabitCardProps) {
   const recentCompletions = getRecentCompletions();
   const todayCompleted = getTodayCompletion();
   const currentStreak = calculateStreak();
+
+  // Update previous streak when current streak changes
+  useEffect(() => {
+    setPreviousStreak(currentStreak);
+  }, [currentStreak]);
 
   return (
     <>
@@ -142,25 +225,36 @@ export default function HabitCard({ habit }: HabitCardProps) {
               <span className="text-xs text-gray-500">Today →</span>
             </div>
             <div className="flex gap-2">
-              {recentCompletions.map((completed, i) => (
-                <div
-                  key={i}
-                  className={`
-                    w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold border-2 
-                    transition-all duration-200 hover:scale-110
-                    ${completed 
-                      ? 'bg-green-100 border-green-300 text-green-700 shadow-md' 
-                      : 'bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200'
-                    }
-                  `}
-                >
-                  {completed ? (
-                    <CheckCircle className="w-4 h-4" />
-                  ) : (
-                    <Circle className="w-4 h-4" />
-                  )}
-                </div>
-              ))}
+              {loadingCompletions ? (
+                // Loading state
+                Array.from({ length: 7 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-8 h-8 rounded-lg bg-gray-100 border-2 border-gray-200 animate-pulse"
+                  />
+                ))
+              ) : (
+                // Completion circles
+                recentCompletions.map((completed, i) => (
+                  <div
+                    key={i}
+                    className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold border-2 
+                      transition-all duration-200 hover:scale-110
+                      ${completed 
+                        ? 'bg-green-100 border-green-300 text-green-700 shadow-md' 
+                        : 'bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200'
+                      }
+                    `}
+                  >
+                    {completed ? (
+                      <CheckCircle className="w-4 h-4" />
+                    ) : (
+                      <Circle className="w-4 h-4" />
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -176,18 +270,25 @@ export default function HabitCard({ habit }: HabitCardProps) {
             </div>
             
             <button
-              onClick={handleToggleCompletion}
+              onClick={handleMarkComplete}
+              disabled={isMarkingComplete}
               className={`
                 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 
                 shadow-md hover:shadow-lg hover:scale-105 active:scale-95
                 focus:outline-none focus:ring-2 focus:ring-offset-2
+                disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
                 ${todayCompleted
                   ? 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-500'
                   : 'bg-blue-100 text-blue-700 hover:bg-blue-200 focus:ring-blue-500'
                 }
               `}
             >
-              {todayCompleted ? (
+              {isMarkingComplete ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin inline mr-1" />
+                  Marking...
+                </>
+              ) : todayCompleted ? (
                 <>
                   <CheckCircle className="w-4 h-4 inline mr-1" />
                   Completed

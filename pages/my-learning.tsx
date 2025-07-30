@@ -45,6 +45,8 @@ export default function MyLearningPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [loading, setLoading] = useState(true);
+  const [addingProgress, setAddingProgress] = useState<string | null>(null);
+  const [progressInput, setProgressInput] = useState('');
   const router = useRouter();
   const { user } = useUser();
 
@@ -109,6 +111,53 @@ export default function MyLearningPage() {
     return 'from-gray-400 to-gray-500';
   };
 
+  // Add progress function
+  const handleAddProgress = async (resourceId: string) => {
+    if (!user?.id || !progressInput.trim()) return;
+
+    const minutes = parseInt(progressInput);
+    if (isNaN(minutes) || minutes <= 0) {
+      alert('Please enter a valid number of minutes');
+      return;
+    }
+
+    try {
+      // Get current resource
+      const currentResource = resources.find(r => r.id === resourceId);
+      if (!currentResource) return;
+
+      const newProgress = Math.min(currentResource.duration_minutes, currentResource.progress_minutes + minutes);
+
+      const { error } = await supabase
+        .from('learning_resources')
+        .update({
+          progress_minutes: newProgress,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', resourceId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        alert('Failed to update progress: ' + error.message);
+        return;
+      }
+
+      // Update local state
+      setResources(prev => prev.map(r => 
+        r.id === resourceId 
+          ? { ...r, progress_minutes: newProgress, updated_at: new Date().toISOString() }
+          : r
+      ));
+
+      // Reset input and close
+      setProgressInput('');
+      setAddingProgress(null);
+    } catch (err) {
+      console.error('Error updating progress:', err);
+      alert('Failed to update progress. Please try again.');
+    }
+  };
+
   // Delete resource function
   const handleDeleteResource = async (resourceId: string) => {
     if (!user?.id) {
@@ -150,9 +199,15 @@ export default function MyLearningPage() {
       setDeleting(false);
     };
 
+    const onAddProgressClick = (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent card click
+      setAddingProgress(res.id);
+      setProgressInput('');
+    };
+
     return (
       <div
-        className="card-interactive animate-fadeIn relative"
+        className="bg-white rounded-xl border border-gray-200 p-6 animate-fadeIn relative"
         style={{ animationDelay: `${index * 0.1}s` }}
       >
         {/* Delete Button */}
@@ -165,63 +220,96 @@ export default function MyLearningPage() {
           <Trash2 className="w-4 h-4" />
         </button>
 
-        <button
-          onClick={() => handleCardClick(res.id)}
-          className="w-full text-left p-6 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-2xl"
-        >
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
-            {res.emoji}
+        {/* Card Content - Not clickable */}
+        <div className="mb-4">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center text-3xl border border-gray-200">
+              {res.emoji}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">{res.title}</h3>
+              {res.author && (
+                <p className="text-gray-600 text-sm mb-2">{res.author}</p>
+              )}
+              <div className="flex items-center gap-4 text-sm text-gray-500">
+                <span>{res.duration_minutes} min</span>
+                <span>•</span>
+                <span>{res.progress_minutes} / {res.duration_minutes} min completed</span>
+              </div>
+            </div>
           </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">{res.title}</h3>
-            {res.author && (
-              <p className="text-gray-600 text-sm mb-2">{res.author}</p>
-            )}
-            <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span>{res.duration_minutes} min</span>
-              <span>•</span>
-              <span>{res.progress_minutes} / {res.duration_minutes} min completed</span>
+          
+          {/* Progress bar */}
+          <div className="mb-4">
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Progress</span>
+              <span>{Math.round((res.progress_minutes / res.duration_minutes) * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className={`bg-gradient-to-r ${getProgressColor(res.progress_minutes, res.duration_minutes)} h-2 rounded-full transition-all duration-500`}
+                style={{ width: `${Math.min(100, (res.progress_minutes / res.duration_minutes) * 100)}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Type Badge */}
+          <div className="flex justify-end">
+            <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium capitalize border border-gray-200">
+              {res.type}
             </div>
           </div>
         </div>
-        
-        {/* Progress bar */}
-        <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span>Progress</span>
-            <span>{Math.round((res.progress_minutes / res.duration_minutes) * 100)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className={`bg-gradient-to-r ${getProgressColor(res.progress_minutes, res.duration_minutes)} h-2 rounded-full transition-all duration-500`}
-              style={{ width: `${Math.min(100, (res.progress_minutes / res.duration_minutes) * 100)}%` }}
-            ></div>
-          </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+          {addingProgress === res.id ? (
+            /* Edit State - Only show input + buttons */
+            <div className="flex justify-center gap-2 w-full">
+              <input
+                type="number"
+                min="1"
+                value={progressInput}
+                onChange={(e) => setProgressInput(e.target.value)}
+                className="rounded px-2 py-1 border border-gray-300 text-sm w-24 text-center"
+                placeholder="Add minutes..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddProgress(res.id);
+                  }
+                }}
+              />
+              <button
+                onClick={() => handleAddProgress(res.id)}
+                className="bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2 hover:bg-blue-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setAddingProgress(null)}
+                className="text-gray-500 text-sm ml-2 hover:underline"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            /* Normal State - Show View Details + Add Minutes */
+            <>
+              <button
+                onClick={() => handleCardClick(res.id)}
+                className="text-blue-600 text-sm hover:underline"
+              >
+                View Details
+              </button>
+              <button
+                onClick={onAddProgressClick}
+                className="text-blue-500 text-sm hover:underline"
+              >
+                + Add Minutes
+              </button>
+            </>
+          )}
         </div>
-        
-        {/* Categories */}
-        {res.category_tags && res.category_tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {res.category_tags.slice(0, 3).map((tag: string) => (
-              <span key={tag} className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-medium">
-                {tag}
-              </span>
-            ))}
-            {res.category_tags.length > 3 && (
-              <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
-                +{res.category_tags.length - 3} more
-              </span>
-            )}
-          </div>
-        )}
-        
-        <div className="text-xs text-gray-500 flex items-center justify-end">
-          <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium capitalize">
-            {res.type}
-          </div>
-        </div>
-        </button>
       </div>
     );
   };

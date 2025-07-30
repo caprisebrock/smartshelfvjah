@@ -11,7 +11,7 @@ const navItems = [
   { label: 'Dashboard', href: '/', icon: BarChart2 },
   { label: 'My Learning', href: '/my-learning', icon: BookOpen },
   { label: 'Notes', href: '/notes', icon: FileText },
-  { label: 'Ask AI', href: '/ask-ai', icon: Bot },
+  { label: 'AI Chat', href: '/aichat', icon: Bot },
   { label: 'Progress', href: '/progress', icon: Calendar },
   { label: 'Settings', href: '/settings', icon: Settings },
 ];

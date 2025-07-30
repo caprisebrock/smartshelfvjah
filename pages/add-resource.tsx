@@ -40,18 +40,10 @@ export default function AddResourcePage() {
     author: '',
     duration: '',
     progress: '',
-    categories: [] as string[],
-    otherCategory: '',
-    notification: '',
-    cover: '',
-    description: '',
-    isbn: '',
   });
-  const [searchBy, setSearchBy] = useState<'title' | 'isbn'>('title');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<GoogleBookResult[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [tagInput, setTagInput] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,21 +99,11 @@ export default function AddResourcePage() {
     debounceRef.current = setTimeout(async () => {
       if (value !== lastQueryRef.current) {
         lastQueryRef.current = value;
-        const results = await searchGoogleBooks(value, searchBy);
+        const results = await searchGoogleBooks(value, 'title');
         setSearchResults(results);
         setShowResults(results.length > 0);
       }
     }, 500);
-  };
-
-  // Handle ISBN search
-  const handleISBNSearch = async () => {
-    if (!form.isbn || form.isbn.length < 10) return;
-    
-    const results = await searchGoogleBooks(form.isbn, 'isbn');
-    if (results.length > 0) {
-      selectBookResult(results[0]);
-    }
   };
 
   // Select a book result
@@ -130,9 +112,6 @@ export default function AddResourcePage() {
       ...prev,
       title: book.title,
       author: book.authors ? book.authors.join(', ') : '',
-      description: book.description || '',
-      cover: book.imageLinks?.thumbnail || book.imageLinks?.smallThumbnail || '',
-      duration: book.pageCount ? Math.round(book.pageCount * 2).toString() : prev.duration, // Estimate 2 minutes per page
     }));
     setShowResults(false);
     setSearchResults([]);
@@ -150,19 +129,6 @@ export default function AddResourcePage() {
     setErrors(prev => ({ ...prev, title: '' }));
   };
 
-  // Add tag
-  const handleAddTag = () => {
-    if (tagInput.trim() && !form.categories.includes(tagInput.trim())) {
-      setForm(prev => ({ ...prev, categories: [...prev.categories, tagInput.trim()] }));
-      setTagInput('');
-    }
-  };
-  
-  // Remove tag
-  const handleRemoveTag = (tag: string) => {
-    setForm(prev => ({ ...prev, categories: prev.categories.filter(t => t !== tag) }));
-  };
-
   // Handle type selection
   const handleTypeSelect = (emoji: string, type: string) => {
     handleChange('emoji', emoji);
@@ -170,14 +136,6 @@ export default function AddResourcePage() {
     // Clear search results when changing type
     setSearchResults([]);
     setShowResults(false);
-  };
-
-  // Handle key down for tag input
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddTag();
-    }
   };
 
   // Validation
@@ -252,12 +210,6 @@ export default function AddResourcePage() {
       const emoji = form.emoji;
       const duration = Number(form.duration);
       const progress = Number(form.progress);
-      const reminder_date = form.notification ? new Date(form.notification).toISOString() : null;
-      
-      // Handle categories - combine form.categories and form.otherCategory
-      const primaryCategory = form.categories;
-      const customCategory = form.otherCategory;
-      const finalTags = [...primaryCategory, ...(customCategory ? [customCategory] : [])];
 
       // 3️⃣ **Insert learning resource with explicit user_id**
       const { error: insertError } = await supabase.from("learning_resources").insert({
@@ -265,10 +217,9 @@ export default function AddResourcePage() {
         title,
         author,
         emoji,
-        category_tags: finalTags,
+        category_tags: [],
         duration_minutes: duration,
         progress_minutes: progress,
-        reminder_date,
         created_at: new Date(),
         updated_at: new Date(),
         user_id: user.id, // ✅ Required foreign key
@@ -356,66 +307,7 @@ export default function AddResourcePage() {
                     {errors.emoji && <div className="text-red-500 text-sm mt-2">{errors.emoji}</div>}
                   </div>
 
-                  {/* Search Toggle for Books */}
-                  {form.type === 'book' && (
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <div className="flex items-center gap-4 mb-3">
-                        <Search className="w-5 h-5 text-blue-600" />
-                        <span className="font-medium text-blue-900">Book Search</span>
-                      </div>
-                      <div className="flex gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="searchBy"
-                            value="title"
-                            checked={searchBy === 'title'}
-                            onChange={() => setSearchBy('title')}
-                            className="text-blue-600"
-                          />
-                          <span className="text-sm text-blue-800">Search by Title</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="searchBy"
-                            value="isbn"
-                            checked={searchBy === 'isbn'}
-                            onChange={() => setSearchBy('isbn')}
-                            className="text-blue-600"
-                          />
-                          <span className="text-sm text-blue-800">Search by ISBN</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
 
-                  {/* ISBN Search (for books only) */}
-                  {form.type === 'book' && searchBy === 'isbn' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">
-                        ISBN
-                      </label>
-                      <div className="flex gap-3">
-                        <input
-                          type="text"
-                          value={form.isbn}
-                          onChange={e => handleChange('isbn', e.target.value)}
-                          className="input-field flex-1"
-                          placeholder="Enter ISBN (10 or 13 digits)"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleISBNSearch}
-                          disabled={!form.isbn || form.isbn.length < 10}
-                          className="btn-secondary"
-                        >
-                          <Search className="w-4 h-4 mr-2" />
-                          Search
-                        </button>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Title with Search */}
                   <div className="relative">
@@ -525,73 +417,7 @@ export default function AddResourcePage() {
                     </div>
                   </div>
 
-                  {/* Category Tags */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Category Tags
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {form.categories.map(tag => (
-                        <span key={tag} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium">
-                          {tag}
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveTag(tag)} 
-                            className="text-blue-600 hover:text-blue-800 transition-colors"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex gap-3">
-                      <input
-                        type="text"
-                        value={tagInput}
-                        onChange={e => setTagInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="input-field flex-1"
-                        placeholder="Add a category tag (e.g., Productivity, Business)"
-                      />
-                      <button 
-                        type="button" 
-                        onClick={handleAddTag}
-                        className="btn-secondary"
-                      >
-                        Add Tag
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* Custom Category */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Custom Category
-                    </label>
-                    <input
-                      type="text"
-                      value={form.otherCategory}
-                      onChange={e => handleChange('otherCategory', e.target.value)}
-                      className="input-field"
-                      placeholder="Enter a custom category"
-                    />
-                  </div>
-
-                  {/* Notification Date */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Reminder Date
-                    </label>
-                    <input
-                      type="date"
-                      value={form.notification}
-                      onChange={e => handleChange('notification', e.target.value)}
-                      className="input-field"
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Set a date to remind yourself to continue this resource
-                    </p>
-                  </div>
 
                   {/* Submit Button */}
                   <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
@@ -647,16 +473,6 @@ export default function AddResourcePage() {
                       </div>
                     </div>
                     
-                    {form.cover && (
-                      <div className="mb-3">
-                        <img
-                          src={form.cover}
-                          alt={form.title}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                      </div>
-                    )}
-                    
                     {form.duration && (
                       <div className="mb-3">
                         <div className="text-sm text-gray-600 mb-1">Progress</div>
@@ -671,16 +487,6 @@ export default function AddResourcePage() {
                         </div>
                       </div>
                     )}
-                    
-                    {form.categories.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {form.categories.map(tag => (
-                          <span key={tag} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   
                   {/* Tips */}
@@ -691,9 +497,8 @@ export default function AddResourcePage() {
                     </div>
                     <ul className="text-xs text-blue-800 space-y-1">
                       <li>• For books, try searching by title for auto-fill</li>
-                      <li>• Use tags to organize your resources</li>
                       <li>• Set realistic time estimates</li>
-                      <li>• Add reminders to stay on track</li>
+                      <li>• Track your progress regularly</li>
                     </ul>
                   </div>
                 </div>

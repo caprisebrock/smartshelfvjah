@@ -28,14 +28,16 @@ interface AIResponseResult {
 }
 
 /**
- * Creates a new session in Supabase and gets AI response
+ * Gets AI response for a message, optionally with linked resource context
  * @param userMessage - The user's message content
  * @param previousMessages - Array of previous messages in the conversation
+ * @param sessionId - Optional session ID to get linked resource information
  * @returns Promise<AIResponseResult> - Object containing sessionId and AI response
  */
 export async function getAIResponse(
   userMessage: string, 
-  previousMessages: Message[] = []
+  previousMessages: Message[] = [],
+  sessionId?: string
 ): Promise<AIResponseResult> {
   console.log('🚀 [getAIResponse] Starting function with message:', userMessage);
   
@@ -77,7 +79,45 @@ export async function getAIResponse(
       throw new Error(`Authentication failed: ${authError.message}`);
     }
 
-    // 2. Create new session in Supabase (let Supabase autogenerate the ID)
+    // 2. Get linked resource information if sessionId is provided
+    let linkedResourceContext = '';
+    if (sessionId) {
+      console.log('🔗 [getAIResponse] Checking for linked resource information...');
+      try {
+        // Get session details to check for linked learning resource
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('sessions')
+          .select('linked_learning_resource')
+          .eq('id', sessionId)
+          .single();
+
+        if (sessionError) {
+          console.error('❌ [getAIResponse] Error fetching session:', sessionError);
+        } else if (sessionData?.linked_learning_resource) {
+          console.log('📚 [getAIResponse] Found linked learning resource:', sessionData.linked_learning_resource);
+          
+          // Query learning_resources table for details
+          const { data: resourceData, error: resourceError } = await supabase
+            .from('learning_resources')
+            .select('type, title, author, total_minutes, minutes_completed, streak_days')
+            .eq('id', sessionData.linked_learning_resource)
+            .single();
+
+          if (resourceError) {
+            console.error('❌ [getAIResponse] Error fetching learning resource:', resourceError);
+          } else if (resourceData) {
+            console.log('📚 [getAIResponse] Learning resource details:', resourceData);
+            
+            // Format the context message
+            linkedResourceContext = `This chat is linked to a ${resourceData.type} titled "${resourceData.title}" by ${resourceData.author || 'Unknown'}. Total duration: ${resourceData.total_minutes || 0} minutes. Progress: ${resourceData.minutes_completed || 0} minutes completed. Current streak: ${resourceData.streak_days || 0} days.`;
+          }
+        }
+      } catch (error) {
+        console.error('❌ [getAIResponse] Error processing linked resource:', error);
+      }
+    }
+
+    // 3. Create new session in Supabase (let Supabase autogenerate the ID)
     console.log('📝 [getAIResponse] Creating new session...');
     
     // Only include valid fields that exist in the sessions table
@@ -130,6 +170,7 @@ export async function getAIResponse(
     console.log('💾 [getAIResponse] Saving user message...');
     const userMessageData = {
       session_id: sessionId,
+      user_id: user.id,
       sender: 'user' as const,
       content: userMessage.trim(),
       token_count: 0
@@ -153,10 +194,22 @@ export async function getAIResponse(
 
     // 4. Prepare messages for OpenAI API
     console.log('🤖 [getAIResponse] Preparing messages for OpenAI...');
-    const messages = previousMessages.map(msg => ({
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+
+    // Add system message with linked resource context if available
+    if (linkedResourceContext) {
+      messages.push({
+        role: 'system',
+        content: linkedResourceContext
+      });
+      console.log('🔗 [getAIResponse] Added linked resource context:', linkedResourceContext);
+    }
+
+    // Add previous messages
+    messages.push(...previousMessages.map(msg => ({
       role: msg.sender as 'user' | 'assistant',
       content: msg.content
-    }));
+    })));
 
     // Add the current user message
     messages.push({
@@ -197,6 +250,7 @@ export async function getAIResponse(
     console.log('💾 [getAIResponse] Saving AI message...');
     const aiMessageData = {
       session_id: sessionId,
+      user_id: user.id,
       sender: 'assistant' as const,
       content: aiResponse,
       token_count: 0

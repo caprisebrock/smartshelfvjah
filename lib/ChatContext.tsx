@@ -151,7 +151,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sessionData.linked_learning_resource = linkId;
       }
 
-      const { data, error } = await supabase
+      const { data: newSession, error } = await supabase
         .from('sessions')
         .insert(sessionData)
         .select()
@@ -162,14 +162,18 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      const newSession = {
-        ...data,
-        id: data.id.toString()
+      if (newSession) {
+        localStorage.setItem('currentSessionId', newSession.id);
+      }
+
+      const newSessionFormatted = {
+        ...newSession,
+        id: newSession.id.toString()
       };
 
-      dispatch({ type: 'SET_CURRENT_SESSION', payload: newSession });
+      dispatch({ type: 'SET_CURRENT_SESSION', payload: newSessionFormatted });
       dispatch({ type: 'SET_MESSAGES', payload: [] });
-      dispatch({ type: 'SET_SESSIONS', payload: [newSession, ...state.sessions] });
+      dispatch({ type: 'SET_SESSIONS', payload: [newSessionFormatted, ...state.sessions] });
     } catch (err) {
       console.error('Error creating session:', err);
     }
@@ -231,54 +235,128 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     dispatch({ type: 'SET_SENDING', payload: true });
 
     try {
-      // Use the new getAIResponse function which handles session creation and AI response
-      console.log('🤖 [sendMessage] Calling getAIResponse function...');
-      const result = await getAIResponse(content, state.messages);
-      
-      console.log('✅ [sendMessage] getAIResponse completed successfully');
-      console.log('📊 [sendMessage] Result:', result);
+      // First, check if we have a current session in local state
+      let sessionId: string | null = state.currentSession?.id || null;
 
-      // Create session object for state
-      const session = {
-        id: result.sessionId,
-        title: 'New Chat Session',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        token_count: 0,
-        word_count: 0,
-        link_type: 'general' as const
-      };
+      // If no current session in state, check localStorage
+      if (!sessionId) {
+        sessionId = localStorage.getItem('currentSessionId');
+      }
 
-      // Update state with new session and messages
-      dispatch({ type: 'SET_CURRENT_SESSION', payload: session });
-      dispatch({ type: 'SET_SESSIONS', payload: [session, ...state.sessions] });
+      // If still no session, create a new one
+      if (!sessionId) {
+        console.log('📝 [sendMessage] Creating new session...');
+        
+        // Check if we have linked resource information from the current session or UI state
+        const currentSession = state.currentSession;
+        const sessionData: any = {
+          user_id: user.id,
+          title: 'Untitled Session',
+          link_type: currentSession?.link_type || 'general',
+          token_count: 0,
+          word_count: 0
+        };
 
-      // Create message objects for state
+        // Preserve linked resource information if it exists
+        if (currentSession?.linked_learning_resource) {
+          sessionData.linked_learning_resource = currentSession.linked_learning_resource;
+          sessionData.link_type = 'learning_resource';
+        } else if (currentSession?.linked_habit) {
+          sessionData.linked_habit = currentSession.linked_habit;
+          sessionData.link_type = 'habit';
+        }
+
+        // Also preserve other link fields if they exist
+        if (currentSession?.link_id) {
+          sessionData.link_id = currentSession.link_id;
+        }
+        if (currentSession?.link_title) {
+          sessionData.link_title = currentSession.link_title;
+        }
+
+        const { data: newSession, error: sessionError } = await supabase
+          .from('sessions')
+          .insert(sessionData)
+          .select()
+          .single();
+
+        if (sessionError) {
+          console.error('Error creating session:', sessionError);
+          return false;
+        }
+
+        sessionId = newSession.id;
+        localStorage.setItem('currentSessionId', sessionId as string);
+        
+        // Update local state with the new session, preserving linked resource info
+        const session = {
+          id: sessionId as string,
+          title: 'Untitled Session',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          token_count: 0,
+          word_count: 0,
+          link_type: sessionData.link_type,
+          link_id: sessionData.link_id,
+          link_title: sessionData.link_title,
+          linked_habit: sessionData.linked_habit,
+          linked_learning_resource: sessionData.linked_learning_resource
+        };
+        
+        dispatch({ type: 'SET_CURRENT_SESSION', payload: session });
+        dispatch({ type: 'SET_SESSIONS', payload: [session, ...state.sessions] });
+      }
+
+      // Ensure sessionId is not null at this point
+      if (!sessionId) {
+        console.error('Failed to get or create session ID');
+        return false;
+      }
+
+      // Use sessionId for inserting message
+      await supabase
+        .from('session_messages')
+        .insert({
+          session_id: sessionId as string,
+          sender: 'user',
+          content: content.trim(),
+          token_count: 0
+        });
+
+      // Create message object for state
       const userMessageData = {
         id: `temp-${Date.now()}-user`,
-        session_id: result.sessionId,
+        session_id: sessionId as string,
         sender: 'user' as const,
         content: content.trim(),
         created_at: new Date().toISOString(),
         token_count: 0
       };
 
+      // Dispatch user message to state
+      dispatch({ type: 'ADD_MESSAGE', payload: userMessageData });
+
+      // Get AI response using getAIResponse function with session context
+      console.log('🤖 [sendMessage] Getting AI response with session context...');
+      const result = await getAIResponse(content, state.messages, sessionId as string);
+      const aiResponse = result.aiResponse;
+
+      // Create AI message object for state
       const aiMessageData = {
         id: `temp-${Date.now()}-ai`,
-        session_id: result.sessionId,
+        session_id: sessionId as string,
         sender: 'assistant' as const,
-        content: result.aiResponse,
+        content: aiResponse,
         created_at: new Date().toISOString(),
         token_count: 0
       };
 
-      // Dispatch messages to state
-      dispatch({ type: 'ADD_MESSAGE', payload: userMessageData });
+      // Dispatch AI message to state
       dispatch({ type: 'ADD_MESSAGE', payload: aiMessageData });
 
       console.log('🎉 [sendMessage] Message flow completed successfully');
       console.log('📊 [sendMessage] Final state:', {
-        sessionId: result.sessionId,
+        sessionId: sessionId,
         userMessage: userMessageData.id,
         aiMessage: aiMessageData.id,
         totalMessages: state.messages.length + 2

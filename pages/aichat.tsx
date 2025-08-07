@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Fragment } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { MessageCircle, Plus, Send, Bot, User, Loader2, ArrowLeft, AlertCircle, BookOpen, FileText, Target, ChevronDown, Settings } from 'lucide-react';
@@ -6,6 +6,9 @@ import { useChat } from '../lib/ChatContext';
 import { useUser } from '../lib/useUser';
 import { useToast } from '../lib/ToastContext';
 import { supabase } from '../lib/supabaseClient';
+import { saveMessageToSupabase } from '../lib/supabase/saveMessageToSupabase';
+import { isToday, isYesterday, format } from 'date-fns';
+import { v4 as uuid } from 'uuid';
 
 // Helper function to group sessions by link type
 const groupSessionsByType = (sessions: any[]) => {
@@ -65,7 +68,20 @@ const getLinkTypeName = (linkType: string) => {
   }
 };
 
-
+// Helper function to format date labels
+function formatDateLabel(date: string) {
+  const d = new Date(date);
+  const isValidDate = !isNaN(d.getTime());
+  
+  if (!isValidDate) {
+    console.warn("Invalid date in formatDateLabel:", date);
+    return 'Unknown Date';
+  }
+  
+  if (isToday(d)) return 'Today';
+  if (isYesterday(d)) return 'Yesterday';
+  return format(d, 'MMMM d, yyyy');
+}
 
 export default function AIChatPage() {
   const { user } = useUser();
@@ -82,13 +98,43 @@ export default function AIChatPage() {
   const [learningResources, setLearningResources] = useState<any[]>([]);
   const [habits, setHabits] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [messages, setMessages] = useState<Array<{ id: string; content: string; created_at: string; role?: 'user' | 'assistant' }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessions, setSessions] = useState<Array<{ id: string; title: string; user_id: string; created_at: string }>>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Function to load messages for an existing session
+  const loadMessagesForSession = async (sessionId: string) => {
+    const { data: messages, error } = await supabase
+      .from('session_messages')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('order', { ascending: true });
+
+    if (!error && messages) {
+      setMessages(messages);
+    }
+  };
+
+  // Function to update session title in local state
+  const updateSessionTitleInState = (sessionId: string, newTitle: string) => {
+    setSessions(prevSessions => 
+      prevSessions.map(session => 
+        session.id === sessionId 
+          ? { ...session, title: newTitle }
+          : session
+      )
+    );
+  };
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [state.messages]);
+  }, [messages]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -97,6 +143,137 @@ export default function AIChatPage() {
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
     }
   }, [inputValue]);
+
+  // Check for existing session on page load (deprecated - sessions are now managed explicitly)
+  // Removed automatic session creation to prevent duplicates
+
+  // Load sessions from Supabase
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadSessions = async () => {
+      setLoadingSessions(true);
+      try {
+        const { data, error } = await supabase
+          .from('sessions')
+          .select('id, title, user_id, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading sessions:', error);
+        } else {
+          setSessions(data || []);
+        }
+      } catch (err) {
+        console.error('Error loading sessions:', err);
+      } finally {
+        setLoadingSessions(false);
+      }
+    };
+
+    loadSessions();
+  }, [user?.id]);
+
+  // Auto-select most recent session on mount (only if no session is currently selected)
+  useEffect(() => {
+    if (!user?.id || sessions.length === 0 || selectedSessionId) return;
+
+    // Select the first (most recent) session
+    const mostRecentSession = sessions[0];
+    if (mostRecentSession) {
+      setSelectedSessionId(mostRecentSession.id);
+
+  // Supabase Realtime listener for session messages
+  useEffect(() => {
+    if (!selectedSessionId) return;
+
+    const channel = supabase
+      .channel('session-messages-listener')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'session_messages',
+          filter: `session_id=eq.${selectedSessionId}`,
+        },
+        (payload) => {
+          const newMessage = payload.new;
+
+          setMessages((prev) => [...prev, newMessage]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedSessionId]);
+      console.log('Auto-selected most recent session:', mostRecentSession.title);
+    } else {
+      console.warn('No sessions found for user');
+    }
+  }, [user?.id, sessions, selectedSessionId]);
+
+  // Load messages for selected session
+  useEffect(() => {
+    if (!selectedSessionId) {
+      setMessages([]);
+      return;
+    }
+
+    const loadMessages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('session_messages')
+          .select('id, content, created_at, sender')
+          .eq('session_id', selectedSessionId)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error('Error loading messages:', error);
+        } else {
+          // Map sender field to role for compatibility
+          const processedMessages = (data || []).map(msg => ({
+            ...msg,
+            role: msg.sender as 'user' | 'assistant'
+          }));
+          setMessages(processedMessages);
+        }
+      } catch (err) {
+        console.error('Error loading messages:', err);
+      }
+    };
+
+    loadMessages();
+  }, [selectedSessionId]);
+
+  // Supabase Realtime listener for session title updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-session-titles')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sessions',
+        },
+        (payload) => {
+          const updatedSession = payload.new;
+          if (!updatedSession?.id || !updatedSession?.title) return;
+
+          // Update local state / UI cache
+          updateSessionTitleInState(updatedSession.id, updatedSession.title);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Load real data for linking
   useEffect(() => {
@@ -153,62 +330,184 @@ export default function AIChatPage() {
   }, []);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || state.sending) return;
-
-    const message = inputValue.trim();
-    setError(null);
-    console.log('🚀 handleSendMessage called with:', message);
+    if (!inputValue.trim()) return;
+    
+    // Check if a session is selected
+    if (!selectedSessionId) {
+      setError('Please select a session or start a new chat first');
+      addToast('Please select a session or start a new chat first', 'error');
+      return;
+    }
+    
+    // Store the message content before clearing input
+    const messageContent = inputValue.trim();
+    
+    // Step 1: Optimistically add user message to local UI
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: uuid(), // temp ID
+        content: messageContent,
+        sender: 'user',
+        created_at: new Date().toISOString(),
+        session_id: selectedSessionId,
+      }
+    ]);
+    setInputValue(""); // Clear input field immediately
+    setIsLoading(true);
 
     try {
-      console.log('📤 Calling sendMessage...');
-      const success = await sendMessage(message);
-      console.log('📥 sendMessage returned:', success);
-      if (success) {
-        // Only clear input on successful send
-        setInputValue('');
-        console.log('✅ Input cleared, message sent successfully');
-        addToast('Message sent successfully! 🤖', 'success');
+      const currentSessionId = selectedSessionId;
+
+      // Step 3: Save USER message to Supabase (background operation)
+      saveMessageToSupabase({
+        sessionId: currentSessionId,
+        userId: user.id,
+        sender: "user",
+        content: messageContent,
+      }).catch(error => {
+        console.error("Failed to save user message to database:", error);
+        // Don't show error to user for background operations
+      });
+
+      // Step 4: Call API to get assistant reply
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          messages: [...messages, { role: "user", content: messageContent }],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
-    } catch (err) {
-      console.error('❌ Error in handleSendMessage:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Could not get response. Please try again.';
+
+      const data = await response.json();
+      const reply = data.response?.content;
+      if (!reply) throw new Error("No assistant reply received");
+
+      // Step 5: Optimistically add assistant reply to local UI
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: uuid(), // temp ID
+          content: reply,
+          sender: 'assistant',
+          created_at: new Date().toISOString(),
+          session_id: currentSessionId,
+        }
+      ]);
+
+      // Step 6: Save ASSISTANT reply to Supabase (background operation)
+      saveMessageToSupabase({
+        sessionId: currentSessionId,
+        userId: user.id,
+        sender: "assistant",
+        content: reply,
+      }).catch(error => {
+        console.error("Failed to save assistant message to database:", error);
+        // Don't show error to user for background operations
+      });
+
+    } catch (error) {
+      console.error("❌ Chat send error:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Something went wrong while sending.';
       setError(errorMessage);
-      
-      // Show specific error messages based on the error
-      if (errorMessage.includes('Could not create session')) {
-        addToast('Could not create session', 'error');
-      } else if (errorMessage.includes('Could not save user message')) {
-        addToast('Could not save user message', 'error');
-      } else if (errorMessage.includes('Could not save AI reply')) {
-        addToast('Could not save AI reply', 'error');
-      } else if (errorMessage.includes('AI failed to respond')) {
-        addToast('AI failed to respond', 'error');
-      } else {
-        addToast('Something went wrong', 'error');
-      }
-      
-      // Don't clear input on error - let user retry
+      addToast(errorMessage, 'error');
+    } finally {
+      setIsLoading(false); // Always re-enable Send button
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
   const handleSessionClick = (sessionId: string) => {
-    loadSession(sessionId);
+    setSelectedSessionId(sessionId);
   };
 
-  const handleNewChat = () => {
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!selectedSessionId) return;
+
+    // Confirm before deleting
+    if (!confirm('Are you sure you want to delete this message?')) {
+      return;
+    }
+
+    try {
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('session_messages')
+        .delete()
+        .eq('id', messageId)
+        .eq('session_id', selectedSessionId);
+
+      if (error) {
+        console.error('Error deleting message:', error);
+        addToast('Failed to delete message', 'error');
+        return;
+      }
+
+      // Remove from local state
+      setMessages((prev) => prev.filter(msg => msg.id !== messageId));
+      addToast('Message deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      addToast('Failed to delete message', 'error');
+    }
+  };
+
+  const handleNewChat = async () => {
     // Use selected link data
     const linkType = selectedLinkType || 'general';
     const linkId = selectedLinkId || undefined;
     const linkTitle = selectedLink || '';
     
-    createNewSession(linkType as any, linkId, linkTitle);
+    try {
+      // Create new session
+      const { data: sessionData, error: sessionError } = await supabase
+        .from("sessions")
+        .insert({
+          user_id: user.id,
+          title: "Untitled Chat",
+          link_type: linkType,
+          link_id: linkId,
+          link_title: linkTitle,
+        })
+        .select()
+        .single();
+
+      if (sessionError) throw sessionError;
+
+      // Set as selected session
+      setSelectedSessionId(sessionData.id);
+      
+      // Clear messages for new session
+      setMessages([]);
+      
+      // Refresh sessions list
+      const { data: updatedSessions, error: sessionsError } = await supabase
+        .from('sessions')
+        .select('id, title, user_id, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!sessionsError) {
+        setSessions(updatedSessions || []);
+      }
+      
+    } catch (error) {
+      console.error('Error creating new session:', error);
+      addToast('Failed to create new session', 'error');
+    }
   };
 
   // Group sessions for sidebar display
@@ -249,63 +548,36 @@ export default function AIChatPage() {
 
           {/* Sessions List */}
           <div className="flex-1 overflow-y-auto p-4">
-            {state.loading ? (
+            {loadingSessions ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse"></div>
                 ))}
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* Render grouped sessions */}
-                {Object.entries(groupedSessions).map(([linkType, sessions]) => {
-                  if (sessions.length === 0) return null;
-                  
-                  return (
-                    <div key={linkType} className="space-y-2">
-                      <div className="flex items-center gap-2 px-2 py-1">
-                        {getLinkTypeIcon(linkType)}
-                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                          {getLinkTypeName(linkType)}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        {sessions.map((session) => (
-                          <div
-                            key={session.id}
-                            onClick={() => handleSessionClick(session.id)}
-                            className={`
-                              flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors
-                              ${state.currentSession?.id === session.id
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'hover:bg-gray-100 text-gray-600'
-                              }
-                            `}
-                          >
-                            <MessageCircle className={`w-4 h-4 ${
-                              state.currentSession?.id === session.id ? 'text-blue-600' : 'text-gray-400'
-                            }`} />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm truncate">{session.title || 'Untitled'}</span>
-                              {session.linked_learning_resource && (
-                                <div className="text-xs text-gray-400 truncate">
-                                  📚 Linked resource
-                                </div>
-                              )}
-                              {session.linked_habit && (
-                                <div className="text-xs text-gray-400 truncate">
-                                  🎯 Linked habit
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+              <div className="space-y-1">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    onClick={() => handleSessionClick(session.id)}
+                    className={`
+                      flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors
+                      ${selectedSessionId === session.id
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'hover:bg-gray-100 text-gray-600'
+                      }
+                    `}
+                  >
+                    <MessageCircle className={`w-4 h-4 ${
+                      selectedSessionId === session.id ? 'text-blue-600' : 'text-gray-400'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm truncate">{session.title || 'Untitled'}</span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
                 
-                {state.sessions.length === 0 && (
+                {sessions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                     <p className="text-sm">No conversations yet</p>
@@ -343,15 +615,15 @@ export default function AIChatPage() {
           {/* Chat Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Current Session Info */}
-            {state.currentSession && (
+            {sessionId && (
               <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                <span className="font-medium">{state.currentSession.title}</span>
-                {state.currentSession.linked_learning_resource && (
+                <span className="font-medium">Untitled Chat</span>
+                {selectedLinkType === 'learning_resource' && (
                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                     📚 Linked to learning resource
                   </span>
                 )}
-                {state.currentSession.linked_habit && (
+                {selectedLinkType === 'habit' && (
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
                     🎯 Linked to habit
                   </span>
@@ -359,7 +631,7 @@ export default function AIChatPage() {
               </div>
             )}
 
-            {state.messages.length === 0 && !state.sending && !state.currentSession && (
+            {messages.length === 0 && !isLoading && !sessionId && (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-gray-400">
                   <p className="text-sm">No chat selected</p>
@@ -367,39 +639,60 @@ export default function AIChatPage() {
               </div>
             )}
 
-            {state.messages.map((message) => {
-              console.log('🎨 Rendering message:', message);
-              return (
-                <div key={message.id} className={`flex gap-4 ${message.sender === 'user' ? 'justify-end' : ''}`}>
-                  {message.sender === 'assistant' && (
-                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Bot className="w-5 h-5 text-white" />
-                    </div>
-                  )}
-                  <div className={`flex-1 ${message.sender === 'user' ? 'max-w-3xl flex justify-end' : ''}`}>
-                    <div className={`
-                      px-4 py-3 rounded-2xl shadow-sm max-w-2xl
-                      ${message.sender === 'user'
-                        ? 'bg-blue-600 text-white rounded-tr-md'
-                        : 'bg-white border border-gray-200 rounded-tl-md'
-                      }
-                    `}>
-                      <p className={message.sender === 'user' ? 'text-white' : 'text-gray-800'}>
-                        {message.content}
-                      </p>
-                    </div>
-                  </div>
-                  {message.sender === 'user' && (
-                    <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-white" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {messages.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No messages in this session</p>
+                <p className="text-xs">Start a conversation to see messages here</p>
+              </div>
+            ) : (
+              (() => {
+                let lastDate = null;
+                return messages.map((message, i) => {
+                  const date = new Date(message.created_at);
+                  if (isNaN(date.getTime())) return null; // 🚫 Skip invalid messages
+
+                  const currentDate = date.toDateString();
+                  const showDate = currentDate !== lastDate;
+                  lastDate = currentDate;
+
+                  return (
+                    <Fragment key={message.id || i}>
+                      {showDate && (
+                        <div className="flex justify-center my-4">
+                          <div className="text-gray-400 text-xs font-medium bg-gray-50 px-3 py-1 rounded-full">
+                            {formatDateLabel(date)}
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        key={message.id}
+                        className={`group relative flex w-full mb-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {/* DELETE ICON (Visible on Hover) */}
+                        <button
+                          onClick={() => handleDeleteMessage(message.id)}
+                          className="absolute -top-2 -right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                        >
+                          ✕
+                        </button>
+
+                        {/* MESSAGE BUBBLE */}
+                        <div
+                          className={`max-w-[70%] px-4 py-2 rounded-xl text-sm whitespace-pre-wrap
+                            ${message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-900'}`}
+                        >
+                          {message.content}
+                        </div>
+                      </div>
+                    </Fragment>
+                  );
+                });
+              })()
+            )}
 
             {/* Typing indicator */}
-            {state.sending && (
+            {isLoading && (
               <div className="flex gap-4">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="w-5 h-5 text-white" />
@@ -443,21 +736,21 @@ export default function AIChatPage() {
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     rows={1}
                     style={{ minHeight: '48px', maxHeight: '120px' }}
-                    disabled={state.sending}
+                    disabled={isLoading}
                   />
                 </div>
                 <button 
                   onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || state.sending}
+                  disabled={!inputValue.trim() || isLoading}
                   className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
-                  {state.sending ? (
+                  {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
                   <span className="hidden sm:inline">
-                    {state.sending ? 'Sending...' : 'Send'}
+                    {isLoading ? 'Sending...' : 'Send'}
                   </span>
                 </button>
               </div>
@@ -617,4 +910,4 @@ export default function AIChatPage() {
       </div>
     </>
   );
-} 
+}

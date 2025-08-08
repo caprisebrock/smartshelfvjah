@@ -41,52 +41,59 @@ export default function ChatInput({
       <input ref={fileInput} type="file" className="hidden" multiple onChange={onFiles} />
       <div className="mx-auto max-w-5xl px-3 sm:px-6 py-3">
         <div className="relative flex items-end gap-2">
-          {/* toolbar */}
-          <div className="hidden sm:flex items-center gap-1 pl-1">
-            <button
-              type="button"
-              aria-label="Attach"
-              onClick={pickFiles}
-              className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
-            >
-              <Paperclip className="h-5 w-5 text-zinc-500" />
-            </button>
-            <button
-              type="button"
-              aria-label="Link Chat"
-              onClick={onLinkChat}
-              className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
-            >
-              <Link2 className="h-5 w-5 text-zinc-500" />
-            </button>
-          </div>
-
           {/* pill input */}
           <div className="flex-1 relative">
             <div className="rounded-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 
                             shadow-sm focus-within:shadow-md transition-shadow">
-              <textarea
-                ref={ref}
-                rows={1}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={placeholder}
-                className="w-full resize-none bg-transparent px-5 pr-16 py-3 outline-none 
-                           text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-              />
-              <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                <button
-                  type="button"
-                  onClick={onSend}
-                  disabled={disabled || sending || !value.trim()}
-                  aria-label="Send"
-                  className="h-9 w-9 flex items-center justify-center rounded-full bg-indigo-600 text-white 
-                             disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.03] active:scale-95 
-                             transition-transform shadow-sm"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
+              <div className="flex-1 relative flex items-center">
+                {/* left icons inside pill */}
+                <div className="flex items-center gap-1 pl-3">
+                  <button
+                    type="button"
+                    aria-label="Attach"
+                    onClick={pickFiles}
+                    className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                  >
+                    <Paperclip className="h-5 w-5 text-zinc-500" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Link Chat"
+                    onClick={onLinkChat}
+                    className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                  >
+                    <Link2 className="h-5 w-5 text-zinc-500" />
+                  </button>
+                </div>
+
+                {/* textarea */}
+                <textarea
+                  ref={ref}
+                  rows={1}
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={placeholder}
+                  className="flex-1 resize-none bg-transparent px-3 py-3 outline-none 
+                             text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                />
+
+                {/* send button */}
+                <div className="flex items-center pr-2">
+                  <button
+                    type="button"
+                    onClick={onSend}
+                    disabled={disabled || sending || !value.trim()}
+                    aria-label="Send"
+                    className={`h-10 w-10 flex items-center justify-center rounded-full 
+                                ${disabled || sending || !value.trim()
+                                  ? 'bg-indigo-600/40 cursor-not-allowed'
+                                  : 'bg-indigo-600 hover:scale-[1.03] active:scale-95'} 
+                                text-white transition-transform shadow-sm`}
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="px-3 pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">

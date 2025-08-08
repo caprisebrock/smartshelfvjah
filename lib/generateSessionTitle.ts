@@ -1,11 +1,12 @@
 /**
  * Generates a smart session title based on the first few user messages
  * @param messages Array of user messages (first 2-3 messages)
+ * @param includeEmoji Whether to include emoji in the title (default: true)
  * @returns A readable title for the session
  */
-export function generateSessionTitle(messages: string[]): string {
+export function generateSessionTitle(messages: string[], includeEmoji: boolean = true): string {
   if (!messages || messages.length === 0) {
-    return 'Untitled Chat';
+    return includeEmoji ? '💬 Untitled Chat' : 'Untitled Chat';
   }
 
   // Take first 2-3 messages and join them
@@ -13,7 +14,7 @@ export function generateSessionTitle(messages: string[]): string {
   const combinedText = firstMessages.join(' ').toLowerCase();
 
   // Simple keyword-based title generation
-  const title = generateTitleFromKeywords(combinedText);
+  const title = generateTitleFromKeywords(combinedText, includeEmoji);
   
   // Truncate to ~50 characters for neat sidebar display
   return title.length > 50 ? title.substring(0, 47) + '...' : title;
@@ -22,32 +23,35 @@ export function generateSessionTitle(messages: string[]): string {
 /**
  * Generates a title based on keywords in the text
  * @param text Combined text from first few messages
+ * @param includeEmoji Whether to include emoji in the title
  * @returns A readable title
  */
-function generateTitleFromKeywords(text: string): string {
-  // Common topics and their associated keywords
-  const topicKeywords: Record<string, string[]> = {
-    'Productivity': ['productivity', 'efficient', 'time management', 'workflow', 'routine', 'schedule', 'planning'],
-    'Learning': ['learn', 'study', 'education', 'course', 'book', 'reading', 'knowledge', 'skill'],
-    'Health': ['health', 'fitness', 'exercise', 'workout', 'diet', 'nutrition', 'wellness', 'gym'],
-    'Business': ['business', 'marketing', 'strategy', 'startup', 'entrepreneur', 'sales', 'growth'],
-    'Technology': ['tech', 'programming', 'code', 'software', 'app', 'development', 'computer'],
-    'Finance': ['money', 'finance', 'investment', 'budget', 'saving', 'financial', 'wealth'],
-    'Relationships': ['relationship', 'dating', 'marriage', 'family', 'friends', 'social'],
-    'Creativity': ['creative', 'art', 'design', 'writing', 'music', 'inspiration', 'ideas'],
-    'Travel': ['travel', 'vacation', 'trip', 'destination', 'explore', 'adventure'],
-    'Cooking': ['cook', 'recipe', 'food', 'meal', 'kitchen', 'cooking', 'chef']
+function generateTitleFromKeywords(text: string, includeEmoji: boolean = true): string {
+  // Common topics and their associated keywords with emojis
+  const topicKeywords: Record<string, { keywords: string[], emoji: string }> = {
+    'Productivity': { keywords: ['productivity', 'efficient', 'time management', 'workflow', 'routine', 'schedule', 'planning'], emoji: '⚡' },
+    'Learning': { keywords: ['learn', 'study', 'education', 'course', 'book', 'reading', 'knowledge', 'skill'], emoji: '📚' },
+    'Health': { keywords: ['health', 'fitness', 'exercise', 'workout', 'diet', 'nutrition', 'wellness', 'gym'], emoji: '💪' },
+    'Business': { keywords: ['business', 'marketing', 'strategy', 'startup', 'entrepreneur', 'sales', 'growth'], emoji: '💼' },
+    'Technology': { keywords: ['tech', 'programming', 'code', 'software', 'app', 'development', 'computer'], emoji: '💻' },
+    'Finance': { keywords: ['money', 'finance', 'investment', 'budget', 'saving', 'financial', 'wealth'], emoji: '💰' },
+    'Relationships': { keywords: ['relationship', 'dating', 'marriage', 'family', 'friends', 'social'], emoji: '❤️' },
+    'Creativity': { keywords: ['creative', 'art', 'design', 'writing', 'music', 'inspiration', 'ideas'], emoji: '🎨' },
+    'Travel': { keywords: ['travel', 'vacation', 'trip', 'destination', 'explore', 'adventure'], emoji: '✈️' },
+    'Cooking': { keywords: ['cook', 'recipe', 'food', 'meal', 'kitchen', 'cooking', 'chef'], emoji: '👨‍🍳' }
   };
 
   // Find the most relevant topic
   let bestTopic = '';
+  let bestEmoji = '💬'; // Default emoji
   let maxMatches = 0;
 
-  for (const [topic, keywords] of Object.entries(topicKeywords)) {
-    const matches = keywords.filter(keyword => text.includes(keyword)).length;
+  for (const [topic, data] of Object.entries(topicKeywords)) {
+    const matches = data.keywords.filter(keyword => text.includes(keyword)).length;
     if (matches > maxMatches) {
       maxMatches = matches;
       bestTopic = topic;
+      bestEmoji = data.emoji;
     }
   }
 
@@ -58,12 +62,16 @@ function generateTitleFromKeywords(text: string): string {
   // Generate title based on topic and keywords
   if (bestTopic && maxMatches > 0) {
     const keyPhrase = keyWords.slice(0, 2).join(' ').replace(/[^\w\s]/g, '');
-    return `${bestTopic}: ${capitalizeWords(keyPhrase)}`;
+    return includeEmoji 
+      ? `${bestEmoji} ${bestTopic}: ${capitalizeWords(keyPhrase)}`
+      : `${bestTopic}: ${capitalizeWords(keyPhrase)}`;
   }
 
   // Fallback: use first few words as title
   const fallbackTitle = keyWords.slice(0, 3).join(' ').replace(/[^\w\s]/g, '');
-  return capitalizeWords(fallbackTitle) || 'New Chat';
+  return includeEmoji 
+    ? `${bestEmoji} ${capitalizeWords(fallbackTitle)}` || '💬 New Chat'
+    : `${capitalizeWords(fallbackTitle)}` || 'New Chat';
 }
 
 /**
@@ -82,11 +90,13 @@ function capitalizeWords(text: string): string {
  * Generates a session title using OpenAI API (more sophisticated)
  * @param messages Array of user messages
  * @param openaiApiKey Optional OpenAI API key
+ * @param includeEmoji Whether to include emoji in the title (default: true)
  * @returns Promise<string> A smart title generated by AI
  */
 export async function generateSessionTitleWithAI(
   messages: string[], 
-  openaiApiKey?: string
+  openaiApiKey?: string,
+  includeEmoji: boolean = true
 ): Promise<string> {
   if (!openaiApiKey || !messages || messages.length === 0) {
     // Fallback to simple generation
@@ -101,19 +111,27 @@ export async function generateSessionTitleWithAI(
     const firstMessages = messages.slice(0, 3);
     const combinedText = firstMessages.join('\n');
 
+    const systemPrompt = includeEmoji 
+      ? 'You are an assistant that writes helpful, short chat titles with one relevant emoji. Be creative but accurate. Return only the title with the emoji at the start.'
+      : 'You are an assistant that creates short, descriptive titles for chat sessions. Generate a title that captures the main topic or theme of the conversation. Keep it under 50 characters and make it engaging and clear.';
+    
+    const userPrompt = includeEmoji
+      ? `Create a short title for this chat session based on these first few messages:\n\n${combinedText}\n\nReturn only the title with a relevant emoji at the beginning, no other text.`
+      : `Create a short title for this chat session based on these first few messages:\n\n${combinedText}\n\nReturn only the title, no other text.`;
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',
-          content: 'You are an assistant that creates short, descriptive titles for chat sessions. Generate a title that captures the main topic or theme of the conversation. Keep it under 50 characters and make it engaging and clear.'
+          content: systemPrompt
         },
         {
           role: 'user',
-          content: `Create a short title for this chat session based on these first few messages:\n\n${combinedText}\n\nReturn only the title, no other text.`
+          content: userPrompt
         }
       ],
-      max_tokens: 20,
+      max_tokens: includeEmoji ? 25 : 20,
       temperature: 0.7,
     });
 

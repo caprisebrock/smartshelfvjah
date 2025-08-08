@@ -140,11 +140,26 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+      // Verify auth & RLS preconditions before insert
+      const { data: authSession } = await supabase.auth.getSession();
+      console.log('[createNewSession] authSession:', !!authSession?.session, authSession?.session?.user?.id);
+
+      if (!authSession?.session?.user?.id) {
+        console.error('[createNewSession] No authenticated session found');
+        // Note: We don't have access to addToast here, so we'll throw an error
+        // The calling component should handle displaying the error to the user
+        throw new Error('You are not logged in. Please sign in again.');
+      }
+
+      // Ensure we use the authenticated user id (matches RLS):
+      const uid = authSession.session.user.id;
+      console.log('[createNewSession] RLS expects user_id === auth.uid():', uid);
+
       // sessions.created_at has default now()
       // sessions.token_count default 0 (or nullable)
       // sessions.word_count default 0 (or nullable)
       const payload = {
-        user_id: user?.id,
+        user_id: uid,
         title: 'New Chat'
       };
 
@@ -254,11 +269,24 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('📝 [sendMessage] Creating new session...');
         console.log('[sendMessage] user:', user);
         
+        // Verify auth & RLS preconditions before insert
+        const { data: authSession } = await supabase.auth.getSession();
+        console.log('[sendMessage] authSession:', !!authSession?.session, authSession?.session?.user?.id);
+
+        if (!authSession?.session?.user?.id) {
+          console.error('[sendMessage] No authenticated session found');
+          return false;
+        }
+
+        // Ensure we use the authenticated user id (matches RLS):
+        const uid = authSession.session.user.id;
+        console.log('[sendMessage] RLS expects user_id === auth.uid():', uid);
+
         // sessions.created_at has default now()
         // sessions.token_count default 0 (or nullable)
         // sessions.word_count default 0 (or nullable)
         const payload = {
-          user_id: user?.id,
+          user_id: uid,
           title: 'New Chat'
         };
 

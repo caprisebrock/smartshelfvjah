@@ -614,11 +614,25 @@ export default function AIChatPage() {
     console.log('[handleNewChat] link data:', { linkType, linkId, linkTitle });
     
     try {
+      // Verify auth & RLS preconditions before insert
+      const { data: authSession } = await supabase.auth.getSession();
+      console.log('[handleNewChat] authSession:', !!authSession?.session, authSession?.session?.user?.id);
+
+      if (!authSession?.session?.user?.id) {
+        console.error('[handleNewChat] No authenticated session found');
+        addToast('You are not logged in. Please sign in again.', 'error');
+        return;
+      }
+
+      // Ensure we use the authenticated user id (matches RLS):
+      const uid = authSession.session.user.id;
+      console.log('[handleNewChat] RLS expects user_id === auth.uid():', uid);
+
       // sessions.created_at has default now()
       // sessions.token_count default 0 (or nullable)
       // sessions.word_count default 0 (or nullable)
       const sessionPayload = {
-        user_id: user.id,
+        user_id: uid,
         title: "New Chat"
       };
       

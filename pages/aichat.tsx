@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, Fragment } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { MessageCircle, Plus, Send, Bot, User, Loader2, ArrowLeft, AlertCircle, BookOpen, FileText, Target, ChevronDown, Settings } from 'lucide-react';
+import { MessageCircle, Plus, Send, Bot, User, Loader2, ArrowLeft, AlertCircle, BookOpen, FileText, Target, ChevronDown, Settings, Trash2 } from 'lucide-react';
 import { useChat } from '../lib/ChatContext';
 import { useUser } from '../lib/useUser';
 import { useToast } from '../lib/ToastContext';
@@ -473,6 +473,53 @@ export default function AIChatPage() {
     }
   };
 
+  const handleDeleteSession = async (sessionId: string, sessionTitle: string) => {
+    // Confirm before deleting
+    if (!confirm(`Are you sure you want to delete "${sessionTitle}"? This will permanently remove the session and all its messages.`)) {
+      return;
+    }
+
+    try {
+      // Step 1: Delete all messages in the session
+      const { error: messagesError } = await supabase
+        .from('session_messages')
+        .delete()
+        .eq('session_id', sessionId);
+
+      if (messagesError) {
+        console.error('Error deleting session messages:', messagesError);
+        addToast('Failed to delete session messages', 'error');
+        return;
+      }
+
+      // Step 2: Delete the session itself
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (sessionError) {
+        console.error('Error deleting session:', sessionError);
+        addToast('Failed to delete session', 'error');
+        return;
+      }
+
+      // Step 3: Optimistically update local state
+      setSessions((prev) => prev.filter(session => session.id !== sessionId));
+
+      // Step 4: If the deleted session was currently selected, clear the selection
+      if (selectedSessionId === sessionId) {
+        setSelectedSessionId(null);
+        setMessages([]);
+      }
+
+      addToast('Session deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      addToast('Failed to delete session', 'error');
+    }
+  };
+
   const handleNewChat = async () => {
     // Use selected link data
     const linkType = selectedLinkType || 'general';
@@ -567,21 +614,37 @@ export default function AIChatPage() {
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    onClick={() => handleSessionClick(session.id)}
                     className={`
-                      flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors
+                      group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors relative
                       ${selectedSessionId === session.id
                         ? 'bg-blue-50 text-blue-700'
                         : 'hover:bg-gray-100 text-gray-600'
                       }
                     `}
                   >
-                    <MessageCircle className={`w-4 h-4 ${
-                      selectedSessionId === session.id ? 'text-blue-600' : 'text-gray-400'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm truncate">{session.title || 'Untitled'}</span>
+                    <div 
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                      onClick={() => handleSessionClick(session.id)}
+                    >
+                      <MessageCircle className={`w-4 h-4 ${
+                        selectedSessionId === session.id ? 'text-blue-600' : 'text-gray-400'
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm truncate">{session.title || 'Untitled'}</span>
+                      </div>
                     </div>
+                    
+                    {/* Delete Icon - Visible on Hover */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteSession(session.id, session.title || 'Untitled');
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-600"
+                      title="Delete session"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                 ))}
                 

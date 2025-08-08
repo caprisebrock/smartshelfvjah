@@ -12,6 +12,7 @@ import { v4 as uuid } from 'uuid';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import { generateSessionTitle } from '../lib/generateSessionTitle';
 import ChatInput from '../components/ChatInput';
+import MessageList from '../components/MessageList';
 
 // Helper function to group sessions by link type
 const groupSessionsByType = (sessions: any[]) => {
@@ -116,6 +117,7 @@ export default function AIChatPage() {
 
   // Title generation state
   const [titleGenerated, setTitleGenerated] = useState<Set<string>>(new Set());
+  const [typing, setTyping] = useState(false);
 
   // Function to load messages for an existing session
   const loadMessagesForSession = async (sessionId: string) => {
@@ -408,7 +410,8 @@ export default function AIChatPage() {
   }, []);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    const text = inputValue.trim();
+    if (!text || state.sending) return;
     
     // Check if a session is selected
     if (!selectedSessionId) {
@@ -417,25 +420,26 @@ export default function AIChatPage() {
       return;
     }
     
-    // Store the message content before clearing input
-    const messageContent = inputValue.trim();
+    setInputValue('');
+    setTyping(true);
     
-    // Step 1: Optimistically add user message to local UI
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: uuid(), // temp ID
-        content: messageContent,
-        sender: 'user',
-        role: 'user',
-        created_at: new Date().toISOString(),
-        session_id: selectedSessionId,
-      }
-    ]);
-    setInputValue(""); // Clear input field immediately
-    setIsLoading(true);
-
     try {
+      // Store the message content before clearing input
+      const messageContent = text;
+      
+      // Step 1: Optimistically add user message to local UI
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: uuid(), // temp ID
+          content: messageContent,
+          sender: 'user',
+          role: 'user',
+          created_at: new Date().toISOString(),
+          session_id: selectedSessionId,
+        }
+      ]);
+
       const currentSessionId = selectedSessionId;
 
       // Step 3: Save USER message to Supabase (background operation)
@@ -505,8 +509,19 @@ export default function AIChatPage() {
       setError(errorMessage);
       addToast(errorMessage, 'error');
     } finally {
-      setIsLoading(false); // Always re-enable Send button
+      setTyping(false);
     }
+  };
+
+  const onAttach = (files: File[]) => {
+    // Stub: you can show a preview or upload later.
+    console.log('Attached files:', files.map((f) => f.name));
+    addToast(`Attached ${files.length} file(s)`, 'info');
+  };
+
+  const onLinkChat = () => {
+    // Keep your existing link-resource popover/modal; this just triggers it.
+    setShowLinkDropdown(true);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -709,14 +724,14 @@ export default function AIChatPage() {
         <meta name="description" content="Chat with AI about your learning" />
       </Head>
 
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         {/* Left Sidebar - Sessions */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div className="w-80 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
             <button 
               onClick={handleNewChat}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Plus className="w-5 h-5" />
               <span className="font-medium">New Chat</span>
@@ -728,7 +743,7 @@ export default function AIChatPage() {
             {loadingSessions ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse"></div>
+                  <div key={i} className="h-10 bg-zinc-100 dark:bg-zinc-800 rounded-lg animate-pulse"></div>
                 ))}
               </div>
             ) : (
@@ -739,8 +754,8 @@ export default function AIChatPage() {
                     className={`
                       group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors relative
                       ${selectedSessionId === session.id
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'hover:bg-gray-100 text-gray-600'
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                        : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
                       }
                     `}
                   >
@@ -749,7 +764,7 @@ export default function AIChatPage() {
                       onClick={() => handleSessionClick(session.id)}
                     >
                       <MessageCircle className={`w-4 h-4 ${
-                        selectedSessionId === session.id ? 'text-blue-600' : 'text-gray-400'
+                        selectedSessionId === session.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
                       }`} />
                       <div className="flex-1 min-w-0">
                         <span className="text-sm truncate">{session.title || 'Untitled'}</span>
@@ -762,7 +777,7 @@ export default function AIChatPage() {
                         e.stopPropagation();
                         handleDeleteSession(session.id, session.title || 'Untitled');
                       }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-600"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
                       title="Delete session"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -771,8 +786,8 @@ export default function AIChatPage() {
                 ))}
                 
                 {sessions.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <div className="text-center py-8 text-zinc-500 dark:text-zinc-400">
+                    <MessageCircle className="w-8 h-8 mx-auto mb-2 text-zinc-300 dark:text-zinc-600" />
                     <p className="text-sm">No conversations yet</p>
                     <p className="text-xs">Start a new chat to begin</p>
                   </div>
@@ -785,10 +800,10 @@ export default function AIChatPage() {
         {/* Right Chat Area */}
         <div className="flex-1 flex flex-col">
           {/* Header with Back Button */}
-          <div className="p-4 border-b border-gray-200 bg-white">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
             <Link 
               href="/"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              className="inline-flex items-center gap-2 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="font-medium">Back to Dashboard</span>
@@ -797,119 +812,29 @@ export default function AIChatPage() {
 
           {/* Error Banner */}
           {error && (
-            <div className="p-4 bg-red-50 border-b border-red-200">
-              <div className="flex items-center gap-2 text-red-700">
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-sm">{error}</span>
               </div>
             </div>
           )}
 
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Current Session Info */}
-            {sessionId && (
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                <span className="font-medium">Untitled Chat</span>
-                {selectedLinkType === 'learning_resource' && (
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                    📚 Linked to learning resource
-                  </span>
-                )}
-                {selectedLinkType === 'habit' && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                    🎯 Linked to habit
-                  </span>
-                )}
-              </div>
-            )}
-
-            {messages.length === 0 && !isLoading && !sessionId && (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-gray-400">
-                  <p className="text-sm">No chat selected</p>
-                </div>
-              </div>
-            )}
-
-            {messages.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No messages in this session</p>
-                <p className="text-xs">Start a conversation to see messages here</p>
-              </div>
-            ) : (
-              (() => {
-                let lastDate: string | null = null;
-                return messages.map((message, i) => {
-                  const date = new Date(message.created_at);
-                  if (isNaN(date.getTime())) return null; // 🚫 Skip invalid messages
-
-                  const currentDate = date.toDateString();
-                  const showDate = currentDate !== lastDate;
-                  lastDate = currentDate;
-
-                  return (
-                    <Fragment key={message.id || i}>
-                      {showDate && (
-                        <div className="flex justify-center my-4">
-                          <div className="text-gray-400 text-xs font-medium bg-gray-50 px-3 py-1 rounded-full">
-                            {formatDateLabel(message.created_at)}
-                          </div>
-                        </div>
-                      )}
-                      <div
-                        key={message.id}
-                        className={`group relative flex w-full mb-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {/* DELETE ICON (Visible on Hover) */}
-                        <button
-                          onClick={() => handleDeleteMessage(message.id)}
-                          className="absolute -top-2 -right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                        >
-                          ✕
-                        </button>
-
-                        {/* MESSAGE BUBBLE */}
-                        <div
-                          className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap shadow-sm
-                            ${message.role === 'user' 
-                              ? 'bg-blue-500 text-white rounded-br-md' 
-                              : 'bg-gray-100 text-gray-900 rounded-bl-md border border-gray-200'}`}
-                        >
-                          {message.content}
-                        </div>
-                      </div>
-                    </Fragment>
-                  );
-                });
-              })()
-            )}
-
-            {/* Typing indicator */}
-            {isLoading && (
-              <div className="flex gap-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-200 max-w-3xl">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                      <span className="text-gray-600">AI is thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
+          {/* Modern Message List */}
+          <MessageList 
+            messages={messages.map(msg => ({
+              id: msg.id,
+              sender: msg.role === 'user' ? 'user' : 'assistant',
+              content: msg.content,
+              created_at: msg.created_at
+            }))} 
+            typing={typing && state.sending} 
+          />
 
           {/* Error Display */}
           {error && (
-            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-20 p-3 bg-red-50 border border-red-200 rounded-lg shadow-lg">
-              <div className="flex items-center gap-2 text-red-700">
+            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-20 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg shadow-lg">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-sm">{error}</span>
               </div>
@@ -922,22 +847,22 @@ export default function AIChatPage() {
             onChange={setInputValue}
             onSend={handleSendMessage}
             sending={state.sending}
-            disabled={!state.currentSession}
-            onLinkChat={() => setShowLinkDropdown(true)}
-            onAttach={() => console.log('Attach clicked')}
+            disabled={!selectedSessionId}
+            onLinkChat={onLinkChat}
+            onAttach={onAttach}
           />
 
           {/* Link Dropdown */}
           {showLinkDropdown && (
-            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[200px] max-h-60 overflow-y-auto">
+            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg py-1 min-w-[200px] max-h-60 overflow-y-auto">
               {loadingData ? (
-                <div className="px-3 py-2 text-xs text-gray-500">Loading...</div>
+                <div className="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-400">Loading...</div>
               ) : (
                 <>
                   {/* Learning Resources */}
                   {learningResources.length > 0 && (
                     <>
-                      <div className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-50">Learning Resources</div>
+                      <div className="px-3 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800">Learning Resources</div>
                       {learningResources.map((resource) => (
                         <button
                           key={resource.id}
@@ -947,7 +872,7 @@ export default function AIChatPage() {
                             setSelectedLinkType('learning_resource');
                             setShowLinkDropdown(false);
                           }}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         >
                           📚 {resource.title}
                         </button>
@@ -958,7 +883,7 @@ export default function AIChatPage() {
                   {/* Habits */}
                   {habits.length > 0 && (
                     <>
-                      <div className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-50">Habits</div>
+                      <div className="px-3 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800">Habits</div>
                       {habits.map((habit) => (
                         <button
                           key={habit.id}
@@ -968,7 +893,7 @@ export default function AIChatPage() {
                             setSelectedLinkType('habit');
                             setShowLinkDropdown(false);
                           }}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         >
                           🎯 {habit.title}
                         </button>
@@ -978,13 +903,13 @@ export default function AIChatPage() {
 
                   {/* No items message - only show if both lists are empty */}
                   {learningResources.length === 0 && habits.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-gray-500">No habits or learning resources found</div>
+                    <div className="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-400">No habits or learning resources found</div>
                   )}
 
                   {/* Remove link option */}
                   {selectedLink && (
                     <>
-                      <div className="border-t border-gray-100 my-1"></div>
+                      <div className="border-t border-zinc-100 dark:border-zinc-700 my-1"></div>
                       <button
                         onClick={() => {
                           setSelectedLink('');
@@ -992,7 +917,7 @@ export default function AIChatPage() {
                           setSelectedLinkType('');
                           setShowLinkDropdown(false);
                         }}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-red-600"
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 text-red-600 dark:text-red-400"
                       >
                         Remove Link
                       </button>
@@ -1005,8 +930,8 @@ export default function AIChatPage() {
 
           {/* Linked Item Display */}
           {selectedLink && (
-            <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-lg">
-              <span className="text-gray-600">
+            <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2 text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 shadow-lg">
+              <span className="text-zinc-600 dark:text-zinc-300">
                 {selectedLinkType === 'habit' ? '🎯' : '📚'} Linked to: {selectedLink}
               </span>
               <button
@@ -1015,7 +940,7 @@ export default function AIChatPage() {
                   setSelectedLinkId('');
                   setSelectedLinkType('');
                 }}
-                className="text-red-500 hover:text-red-700"
+                className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
               >
                 ❌
               </button>

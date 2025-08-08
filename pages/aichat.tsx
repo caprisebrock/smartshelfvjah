@@ -146,6 +146,8 @@ export default function AIChatPage() {
       return; // Already generated or no session
     }
 
+    let generatedTitle = "Untitled Chat"; // Default fallback title
+
     try {
       // Get user messages for this session
       const { data: messages, error } = await supabase
@@ -163,13 +165,21 @@ export default function AIChatPage() {
       // Extract message content
       const userMessages = messages.map(msg => msg.content);
       
-      // Generate title
-      const newTitle = generateSessionTitle(userMessages);
+      // Generate title with error handling
+      try {
+        const titleResponse = generateSessionTitle(userMessages);
+        if (titleResponse && typeof titleResponse === 'string' && titleResponse.trim() !== "") {
+          generatedTitle = titleResponse.trim();
+        }
+      } catch (titleError) {
+        console.error("Error generating title:", titleError);
+        // Fallback to default title
+      }
       
       // Update in Supabase
       const { error: updateError } = await supabase
         .from('sessions')
-        .update({ title: newTitle })
+        .update({ title: generatedTitle })
         .eq('id', sessionId);
 
       if (updateError) {
@@ -178,14 +188,15 @@ export default function AIChatPage() {
       }
 
       // Update local state
-      updateSessionTitleInState(sessionId, newTitle);
+      updateSessionTitleInState(sessionId, generatedTitle);
       
       // Mark as generated
       setTitleGenerated(prev => new Set(prev).add(sessionId));
       
-      console.log('Generated session title:', newTitle);
+      console.log('Generated session title:', generatedTitle);
     } catch (error) {
       console.error('Error generating session title:', error);
+      // Even if title generation fails, we don't want to break the session
     }
   };
 

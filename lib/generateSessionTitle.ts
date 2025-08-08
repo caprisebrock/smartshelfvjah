@@ -5,19 +5,25 @@
  * @returns A readable title for the session
  */
 export function generateSessionTitle(messages: string[], includeEmoji: boolean = true): string {
-  if (!messages || messages.length === 0) {
+  try {
+    if (!messages || messages.length === 0) {
+      return includeEmoji ? '💬 Untitled Chat' : 'Untitled Chat';
+    }
+
+    // Take first 2-3 messages and join them
+    const firstMessages = messages.slice(0, 3);
+    const combinedText = firstMessages.join(' ').toLowerCase();
+
+    // Simple keyword-based title generation
+    const title = generateTitleFromKeywords(combinedText, includeEmoji);
+    
+    // Truncate to ~50 characters for neat sidebar display
+    return title.length > 50 ? title.substring(0, 47) + '...' : title;
+  } catch (error) {
+    console.error('Error in generateSessionTitle:', error);
+    // Return a safe fallback title
     return includeEmoji ? '💬 Untitled Chat' : 'Untitled Chat';
   }
-
-  // Take first 2-3 messages and join them
-  const firstMessages = messages.slice(0, 3);
-  const combinedText = firstMessages.join(' ').toLowerCase();
-
-  // Simple keyword-based title generation
-  const title = generateTitleFromKeywords(combinedText, includeEmoji);
-  
-  // Truncate to ~50 characters for neat sidebar display
-  return title.length > 50 ? title.substring(0, 47) + '...' : title;
 }
 
 /**
@@ -27,19 +33,20 @@ export function generateSessionTitle(messages: string[], includeEmoji: boolean =
  * @returns A readable title
  */
 function generateTitleFromKeywords(text: string, includeEmoji: boolean = true): string {
-  // Common topics and their associated keywords with emojis
-  const topicKeywords: Record<string, { keywords: string[], emoji: string }> = {
-    'Productivity': { keywords: ['productivity', 'efficient', 'time management', 'workflow', 'routine', 'schedule', 'planning'], emoji: '⚡' },
-    'Learning': { keywords: ['learn', 'study', 'education', 'course', 'book', 'reading', 'knowledge', 'skill'], emoji: '📚' },
-    'Health': { keywords: ['health', 'fitness', 'exercise', 'workout', 'diet', 'nutrition', 'wellness', 'gym'], emoji: '💪' },
-    'Business': { keywords: ['business', 'marketing', 'strategy', 'startup', 'entrepreneur', 'sales', 'growth'], emoji: '💼' },
-    'Technology': { keywords: ['tech', 'programming', 'code', 'software', 'app', 'development', 'computer'], emoji: '💻' },
-    'Finance': { keywords: ['money', 'finance', 'investment', 'budget', 'saving', 'financial', 'wealth'], emoji: '💰' },
-    'Relationships': { keywords: ['relationship', 'dating', 'marriage', 'family', 'friends', 'social'], emoji: '❤️' },
-    'Creativity': { keywords: ['creative', 'art', 'design', 'writing', 'music', 'inspiration', 'ideas'], emoji: '🎨' },
-    'Travel': { keywords: ['travel', 'vacation', 'trip', 'destination', 'explore', 'adventure'], emoji: '✈️' },
-    'Cooking': { keywords: ['cook', 'recipe', 'food', 'meal', 'kitchen', 'cooking', 'chef'], emoji: '👨‍🍳' }
-  };
+  try {
+    // Common topics and their associated keywords with emojis
+    const topicKeywords: Record<string, { keywords: string[], emoji: string }> = {
+      'Productivity': { keywords: ['productivity', 'efficient', 'time management', 'workflow', 'routine', 'schedule', 'planning'], emoji: '⚡' },
+      'Learning': { keywords: ['learn', 'study', 'education', 'course', 'book', 'reading', 'knowledge', 'skill'], emoji: '📚' },
+      'Health': { keywords: ['health', 'fitness', 'exercise', 'workout', 'diet', 'nutrition', 'wellness', 'gym'], emoji: '💪' },
+      'Business': { keywords: ['business', 'marketing', 'strategy', 'startup', 'entrepreneur', 'sales', 'growth'], emoji: '💼' },
+      'Technology': { keywords: ['tech', 'programming', 'code', 'software', 'app', 'development', 'computer'], emoji: '💻' },
+      'Finance': { keywords: ['money', 'finance', 'investment', 'budget', 'saving', 'financial', 'wealth'], emoji: '💰' },
+      'Relationships': { keywords: ['relationship', 'dating', 'marriage', 'family', 'friends', 'social'], emoji: '❤️' },
+      'Creativity': { keywords: ['creative', 'art', 'design', 'writing', 'music', 'inspiration', 'ideas'], emoji: '🎨' },
+      'Travel': { keywords: ['travel', 'vacation', 'trip', 'destination', 'explore', 'adventure'], emoji: '✈️' },
+      'Cooking': { keywords: ['cook', 'recipe', 'food', 'meal', 'kitchen', 'cooking', 'chef'], emoji: '👨‍🍳' }
+    };
 
   // Find the most relevant topic
   let bestTopic = '';
@@ -72,6 +79,11 @@ function generateTitleFromKeywords(text: string, includeEmoji: boolean = true): 
   return includeEmoji 
     ? `${bestEmoji} ${capitalizeWords(fallbackTitle)}` || '💬 New Chat'
     : `${capitalizeWords(fallbackTitle)}` || 'New Chat';
+  } catch (error) {
+    console.error('Error in generateTitleFromKeywords:', error);
+    // Return a safe fallback title
+    return includeEmoji ? '💬 New Chat' : 'New Chat';
+  }
 }
 
 /**
@@ -80,10 +92,18 @@ function generateTitleFromKeywords(text: string, includeEmoji: boolean = true): 
  * @returns Text with capitalized words
  */
 function capitalizeWords(text: string): string {
-  return text
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  try {
+    if (!text || typeof text !== 'string') {
+      return '';
+    }
+    return text
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  } catch (error) {
+    console.error('Error in capitalizeWords:', error);
+    return text || '';
+  }
 }
 
 /**

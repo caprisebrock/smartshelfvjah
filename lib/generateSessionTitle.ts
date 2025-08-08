@@ -7,7 +7,7 @@
 export function generateSessionTitle(messages: string[], includeEmoji: boolean = true): string {
   try {
     if (!messages || messages.length === 0) {
-      return includeEmoji ? '💬 Untitled Chat' : 'Untitled Chat';
+      return includeEmoji ? '💬 New Chat' : 'New Chat';
     }
 
     // Take first 2-3 messages and join them
@@ -17,12 +17,18 @@ export function generateSessionTitle(messages: string[], includeEmoji: boolean =
     // Simple keyword-based title generation
     const title = generateTitleFromKeywords(combinedText, includeEmoji);
     
+    // Ensure we always return a valid string
+    if (!title || typeof title !== 'string' || title.trim() === '') {
+      return includeEmoji ? '💬 New Chat' : 'New Chat';
+    }
+    
     // Truncate to ~50 characters for neat sidebar display
-    return title.length > 50 ? title.substring(0, 47) + '...' : title;
+    const finalTitle = title.length > 50 ? title.substring(0, 47) + '...' : title;
+    return finalTitle || (includeEmoji ? '💬 New Chat' : 'New Chat');
   } catch (error) {
     console.error('Error in generateSessionTitle:', error);
     // Return a safe fallback title
-    return includeEmoji ? '💬 Untitled Chat' : 'Untitled Chat';
+    return includeEmoji ? '💬 New Chat' : 'New Chat';
   }
 }
 
@@ -69,16 +75,22 @@ function generateTitleFromKeywords(text: string, includeEmoji: boolean = true): 
   // Generate title based on topic and keywords
   if (bestTopic && maxMatches > 0) {
     const keyPhrase = keyWords.slice(0, 2).join(' ').replace(/[^\w\s]/g, '');
-    return includeEmoji 
+    const topicResult = includeEmoji 
       ? `${bestEmoji} ${bestTopic}: ${capitalizeWords(keyPhrase)}`
       : `${bestTopic}: ${capitalizeWords(keyPhrase)}`;
+    
+    // Ensure we always return a valid string
+    return topicResult || (includeEmoji ? '💬 New Chat' : 'New Chat');
   }
 
   // Fallback: use first few words as title
   const fallbackTitle = keyWords.slice(0, 3).join(' ').replace(/[^\w\s]/g, '');
-  return includeEmoji 
-    ? `${bestEmoji} ${capitalizeWords(fallbackTitle)}` || '💬 New Chat'
-    : `${capitalizeWords(fallbackTitle)}` || 'New Chat';
+  const fallbackResult = includeEmoji 
+    ? `${bestEmoji} ${capitalizeWords(fallbackTitle)}`
+    : `${capitalizeWords(fallbackTitle)}`;
+  
+  // Ensure we always return a valid string
+  return fallbackResult || (includeEmoji ? '💬 New Chat' : 'New Chat');
   } catch (error) {
     console.error('Error in generateTitleFromKeywords:', error);
     // Return a safe fallback title
@@ -118,12 +130,12 @@ export async function generateSessionTitleWithAI(
   openaiApiKey?: string,
   includeEmoji: boolean = true
 ): Promise<string> {
-  if (!openaiApiKey || !messages || messages.length === 0) {
-    // Fallback to simple generation
-    return generateSessionTitle(messages);
-  }
-
   try {
+    // Validate inputs and provide fallback
+    if (!openaiApiKey || !messages || messages.length === 0) {
+      return includeEmoji ? '💬 New Chat' : 'New Chat';
+    }
+
     const { OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: openaiApiKey });
 
@@ -132,12 +144,12 @@ export async function generateSessionTitleWithAI(
     const combinedText = firstMessages.join('\n');
 
     const systemPrompt = includeEmoji 
-      ? 'You are an assistant that writes helpful, short chat titles with one relevant emoji. Be creative but accurate. Return only the title with the emoji at the start.'
+      ? 'You are an assistant that writes helpful, short chat titles with one relevant emoji. Return only the title with the emoji at the start.'
       : 'You are an assistant that creates short, descriptive titles for chat sessions. Generate a title that captures the main topic or theme of the conversation. Keep it under 50 characters and make it engaging and clear.';
     
     const userPrompt = includeEmoji
-      ? `Create a short title for this chat session based on these first few messages:\n\n${combinedText}\n\nReturn only the title with a relevant emoji at the beginning, no other text.`
-      : `Create a short title for this chat session based on these first few messages:\n\n${combinedText}\n\nReturn only the title, no other text.`;
+      ? `Create a concise title for the following conversation:\n${combinedText}`
+      : `Create a concise title for the following conversation:\n${combinedText}`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
@@ -151,15 +163,14 @@ export async function generateSessionTitleWithAI(
           content: userPrompt
         }
       ],
-      max_tokens: includeEmoji ? 25 : 20,
+      max_tokens: 20,
       temperature: 0.7,
     });
 
     const title = completion.choices[0]?.message?.content?.trim();
-    return title || generateSessionTitle(messages);
+    return title || (includeEmoji ? '💬 New Chat' : 'New Chat');
   } catch (error) {
-    console.error('Error generating AI title:', error);
-    // Fallback to simple generation
-    return generateSessionTitle(messages);
+    console.error('OpenAI error:', error);
+    return includeEmoji ? '💬 New Chat' : 'New Chat';
   }
 } 

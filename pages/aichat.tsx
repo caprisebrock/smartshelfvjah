@@ -603,26 +603,45 @@ export default function AIChatPage() {
   };
 
   const handleNewChat = async () => {
+    console.log('[handleNewChat] START');
+    console.log('[handleNewChat] user:', user);
+    
     // Use selected link data
     const linkType = selectedLinkType || 'general';
     const linkId = selectedLinkId || undefined;
     const linkTitle = selectedLink || '';
     
+    console.log('[handleNewChat] link data:', { linkType, linkId, linkTitle });
+    
     try {
+      const sessionPayload = {
+        user_id: user.id,
+        title: "Untitled Chat",
+        link_type: linkType,
+        link_id: linkId,
+        link_title: linkTitle,
+      };
+      
+      console.log('[handleNewChat] session payload:', sessionPayload);
+      
       // Create new session
       const { data: sessionData, error: sessionError } = await supabase
         .from("sessions")
-        .insert({
-          user_id: user.id,
-          title: "Untitled Chat",
-          link_type: linkType,
-          link_id: linkId,
-          link_title: linkTitle,
-        })
+        .insert(sessionPayload)
         .select()
         .single();
 
-      if (sessionError) throw sessionError;
+      if (sessionError) {
+        console.error('[handleNewChat] Supabase insert error:', {
+          message: sessionError.message,
+          code: sessionError.code,
+          details: sessionError.details,
+          hint: sessionError.hint
+        });
+        throw new Error(`FAILED_CREATE_SESSION: ${sessionError.message}`);
+      }
+
+      console.log('[handleNewChat] session created successfully:', sessionData);
 
       // Set as selected session
       setSelectedSessionId(sessionData.id);
@@ -640,13 +659,16 @@ export default function AIChatPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (!sessionsError) {
+      if (sessionsError) {
+        console.error('[handleNewChat] Error refreshing sessions:', sessionsError);
+      } else {
+        console.log('[handleNewChat] sessions refreshed:', updatedSessions?.length || 0, 'sessions');
         setSessions(updatedSessions || []);
       }
       
     } catch (error) {
-      console.error('Error creating new session:', error);
-      addToast('Failed to create new session', 'error');
+      console.error('[handleNewChat] crash:', error);
+      addToast((error as Error).message || 'Failed to create new session', 'error');
     }
   };
 

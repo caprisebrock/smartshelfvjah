@@ -131,7 +131,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Create new session
   const createNewSession = async (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string) => {
-    if (!user?.id) return;
+    console.log('[createNewSession] START');
+    console.log('[createNewSession] user:', user);
+    
+    if (!user?.id) {
+      console.error('[createNewSession] No user ID available');
+      return;
+    }
 
     try {
       const sessionData: any = {
@@ -151,16 +157,26 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sessionData.linked_learning_resource = linkId;
       }
 
+      const { data: sessionDataPayload } = { data: sessionData };
+      console.log('[createNewSession] payload:', sessionDataPayload);
+
       const { data: newSession, error } = await supabase
         .from('sessions')
-        .insert(sessionData)
+        .insert(sessionDataPayload)
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating session:', error);
-        return;
+        console.error('[createNewSession] Supabase insert error:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        throw new Error(`FAILED_CREATE_SESSION: ${error.message}`);
       }
+
+      console.log('[createNewSession] success:', newSession);
 
       if (newSession) {
         localStorage.setItem('currentSessionId', newSession.id);
@@ -175,7 +191,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dispatch({ type: 'SET_MESSAGES', payload: [] });
       dispatch({ type: 'SET_SESSIONS', payload: [newSessionFormatted, ...state.sessions] });
     } catch (err) {
-      console.error('Error creating session:', err);
+      console.error('[createNewSession] crash:', err);
+      // Note: We don't have access to addToast here, so we'll log the error
+      // The calling component should handle displaying the error to the user
+      throw err; // Re-throw to let the calling component handle it
     }
   };
 
@@ -246,6 +265,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // If still no session, create a new one
       if (!sessionId) {
         console.log('📝 [sendMessage] Creating new session...');
+        console.log('[sendMessage] user:', user);
         
         // Check if we have linked resource information from the current session or UI state
         const currentSession = state.currentSession;
@@ -274,6 +294,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           sessionData.link_title = currentSession.link_title;
         }
 
+        console.log('[sendMessage] session payload:', sessionData);
+
         const { data: newSession, error: sessionError } = await supabase
           .from('sessions')
           .insert(sessionData)
@@ -281,9 +303,16 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .single();
 
         if (sessionError) {
-          console.error('Error creating session:', sessionError);
+          console.error('[sendMessage] Supabase insert error:', {
+            message: sessionError.message,
+            code: sessionError.code,
+            details: sessionError.details,
+            hint: sessionError.hint
+          });
           return false;
         }
+
+        console.log('[sendMessage] session created successfully:', newSession);
 
         sessionId = newSession.id;
         localStorage.setItem('currentSessionId', sessionId as string);

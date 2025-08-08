@@ -11,6 +11,7 @@ import { isToday, isYesterday, format } from 'date-fns';
 import { v4 as uuid } from 'uuid';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import { generateSessionTitle } from '../lib/generateSessionTitle';
+import ChatInput from '../components/ChatInput';
 
 // Helper function to group sessions by link type
 const groupSessionsByType = (sessions: any[]) => {
@@ -905,201 +906,121 @@ export default function AIChatPage() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="border-t border-gray-200 p-4 bg-white">
-            <div className="max-w-4xl mx-auto">
-              {/* Error Display */}
-              {error && (
-                <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-red-700">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="text-sm">{error}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Chat Input */}
-              <div className="flex gap-3 mb-3">
-                <div className="flex-1 relative">
-                  <textarea
-                    ref={textareaRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Type your message here..."
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    rows={1}
-                    style={{ minHeight: '48px', maxHeight: '120px' }}
-                    disabled={isLoading}
-                  />
-                </div>
-                <button 
-                  onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isLoading}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {isLoading ? 'Sending...' : 'Send'}
-                  </span>
-                </button>
+          {/* Error Display */}
+          {error && (
+            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-20 p-3 bg-red-50 border border-red-200 rounded-lg shadow-lg">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">{error}</span>
               </div>
+            </div>
+          )}
 
-              {/* Modern Tone and Link Controls */}
-              <div className="flex items-center gap-2 text-sm dropdown-container">
-                {/* Tone Control */}
-                <div className="relative dropdown-container flex items-center gap-2">
-                  <button
-                    onClick={() => setShowToneDropdown(!showToneDropdown)}
-                    className="w-8 h-8 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-full flex items-center justify-center transition-colors"
-                  >
-                    <span className="text-sm">➕</span>
-                  </button>
-                  {selectedTone && selectedTone !== 'Summary' && (
-                    <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
-                      <span>🟦 {selectedTone}</span>
-                      <button
-                        onClick={() => setSelectedTone('Summary')}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        ❌
-                      </button>
-                    </div>
-                  )}
-                  {showToneDropdown && (
-                    <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[120px]">
-                      {['Summary', 'Bullet Points', 'Reflective', 'Detailed', 'Insights'].map((tone) => (
+          {/* Modern Chat Input */}
+          <ChatInput
+            value={inputValue}
+            onChange={setInputValue}
+            onSend={handleSendMessage}
+            sending={state.sending}
+            disabled={!state.currentSession}
+            onLinkChat={() => setShowLinkDropdown(true)}
+            onAttach={() => console.log('Attach clicked')}
+          />
+
+          {/* Link Dropdown */}
+          {showLinkDropdown && (
+            <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[200px] max-h-60 overflow-y-auto">
+              {loadingData ? (
+                <div className="px-3 py-2 text-xs text-gray-500">Loading...</div>
+              ) : (
+                <>
+                  {/* Learning Resources */}
+                  {learningResources.length > 0 && (
+                    <>
+                      <div className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-50">Learning Resources</div>
+                      {learningResources.map((resource) => (
                         <button
-                          key={tone}
+                          key={resource.id}
                           onClick={() => {
-                            setSelectedTone(tone);
-                            setShowToneDropdown(false);
+                            setSelectedLink(resource.title);
+                            setSelectedLinkId(resource.id);
+                            setSelectedLinkType('learning_resource');
+                            setShowLinkDropdown(false);
                           }}
                           className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
                         >
-                          {tone}
+                          📚 {resource.title}
                         </button>
                       ))}
-                    </div>
+                    </>
                   )}
-                </div>
 
-                {/* Link Control */}
-                <div className="relative dropdown-container">
-                  <button
-                    onClick={() => setShowLinkDropdown(!showLinkDropdown)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-full text-xs font-medium transition-colors"
-                    disabled={loadingData}
-                  >
-                    <span>🔗</span>
-                    <span>Link Chat</span>
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {showLinkDropdown && (
-                    <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[200px] max-h-60 overflow-y-auto">
-                      {loadingData ? (
-                        <div className="px-3 py-2 text-xs text-gray-500">Loading...</div>
-                      ) : (
-                        <>
-                          {/* Learning Resources */}
-                          {learningResources.length > 0 && (
-                            <>
-                              <div className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-50">Learning Resources</div>
-                              {learningResources.map((resource) => (
-                                <button
-                                  key={resource.id}
-                                  onClick={() => {
-                                    setSelectedLink(resource.title);
-                                    setSelectedLinkId(resource.id);
-                                    setSelectedLinkType('learning_resource');
-                                    setShowLinkDropdown(false);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
-                                >
-                                  📚 {resource.title}
-                                </button>
-                              ))}
-                            </>
-                          )}
-
-                          {/* Habits */}
-                          {habits.length > 0 && (
-                            <>
-                              <div className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-50">Habits</div>
-                              {habits.map((habit) => (
-                                <button
-                                  key={habit.id}
-                                  onClick={() => {
-                                    setSelectedLink(habit.title);
-                                    setSelectedLinkId(habit.id);
-                                    setSelectedLinkType('habit');
-                                    setShowLinkDropdown(false);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
-                                >
-                                  🎯 {habit.title}
-                                </button>
-                              ))}
-                            </>
-                          )}
-
-                          {/* No items message - only show if both lists are empty */}
-                          {learningResources.length === 0 && habits.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-gray-500">No habits or learning resources found</div>
-                          )}
-
-                          {/* Remove link option */}
-                          {selectedLink && (
-                            <>
-                              <div className="border-t border-gray-100 my-1"></div>
-                              <button
-                                onClick={() => {
-                                  setSelectedLink('');
-                                  setSelectedLinkId('');
-                                  setSelectedLinkType('');
-                                  setShowLinkDropdown(false);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-red-600"
-                              >
-                                Remove Link
-                              </button>
-                            </>
-                          )}
-                        </>
-                      )}
-                    </div>
+                  {/* Habits */}
+                  {habits.length > 0 && (
+                    <>
+                      <div className="px-3 py-1 text-xs font-medium text-gray-500 bg-gray-50">Habits</div>
+                      {habits.map((habit) => (
+                        <button
+                          key={habit.id}
+                          onClick={() => {
+                            setSelectedLink(habit.title);
+                            setSelectedLinkId(habit.id);
+                            setSelectedLinkType('habit');
+                            setShowLinkDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
+                        >
+                          🎯 {habit.title}
+                        </button>
+                      ))}
+                    </>
                   )}
-                </div>
-              </div>
 
-              {/* Linked Item Display */}
-              {selectedLink && (
-                <div className="mt-2 flex items-center gap-2 text-xs">
-                  <span className="text-gray-600">
-                    {selectedLinkType === 'habit' ? '🎯' : '📚'} Linked to: {selectedLink}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setSelectedLink('');
-                      setSelectedLinkId('');
-                      setSelectedLinkType('');
-                    }}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    ❌
-                  </button>
-                </div>
+                  {/* No items message - only show if both lists are empty */}
+                  {learningResources.length === 0 && habits.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-gray-500">No habits or learning resources found</div>
+                  )}
+
+                  {/* Remove link option */}
+                  {selectedLink && (
+                    <>
+                      <div className="border-t border-gray-100 my-1"></div>
+                      <button
+                        onClick={() => {
+                          setSelectedLink('');
+                          setSelectedLinkId('');
+                          setSelectedLinkType('');
+                          setShowLinkDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-red-600"
+                      >
+                        Remove Link
+                      </button>
+                    </>
+                  )}
+                </>
               )}
-
-              <div className="mt-2 text-xs text-gray-500 text-center">
-                Press Enter to send, Shift+Enter for new line
-              </div>
             </div>
-          </div>
+          )}
+
+          {/* Linked Item Display */}
+          {selectedLink && (
+            <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-lg">
+              <span className="text-gray-600">
+                {selectedLinkType === 'habit' ? '🎯' : '📚'} Linked to: {selectedLink}
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedLink('');
+                  setSelectedLinkId('');
+                  setSelectedLinkType('');
+                }}
+                className="text-red-500 hover:text-red-700"
+              >
+                ❌
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

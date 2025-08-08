@@ -10,6 +10,7 @@ import { saveMessageToSupabase } from '../lib/supabase/saveMessageToSupabase';
 import { isToday, isYesterday, format } from 'date-fns';
 import { v4 as uuid } from 'uuid';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
+import { generateSessionTitle } from '../lib/generateSessionTitle';
 
 // Helper function to group sessions by link type
 const groupSessionsByType = (sessions: any[]) => {
@@ -112,6 +113,9 @@ export default function AIChatPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; title: string } | null>(null);
 
+  // Title generation state
+  const [titleGenerated, setTitleGenerated] = useState<Set<string>>(new Set());
+
   // Function to load messages for an existing session
   const loadMessagesForSession = async (sessionId: string) => {
     const { data: messages, error } = await supabase
@@ -134,6 +138,55 @@ export default function AIChatPage() {
           : session
       )
     );
+  };
+
+  // Function to generate and update session title
+  const generateAndUpdateSessionTitle = async (sessionId: string) => {
+    if (!sessionId || titleGenerated.has(sessionId)) {
+      return; // Already generated or no session
+    }
+
+    try {
+      // Get user messages for this session
+      const { data: messages, error } = await supabase
+        .from('session_messages')
+        .select('content, sender')
+        .eq('session_id', sessionId)
+        .eq('sender', 'user')
+        .order('created_at', { ascending: true })
+        .limit(3);
+
+      if (error || !messages || messages.length < 3) {
+        return; // Need at least 3 user messages
+      }
+
+      // Extract message content
+      const userMessages = messages.map(msg => msg.content);
+      
+      // Generate title
+      const newTitle = generateSessionTitle(userMessages);
+      
+      // Update in Supabase
+      const { error: updateError } = await supabase
+        .from('sessions')
+        .update({ title: newTitle })
+        .eq('id', sessionId);
+
+      if (updateError) {
+        console.error('Error updating session title:', updateError);
+        return;
+      }
+
+      // Update local state
+      updateSessionTitleInState(sessionId, newTitle);
+      
+      // Mark as generated
+      setTitleGenerated(prev => new Set(prev).add(sessionId));
+      
+      console.log('Generated session title:', newTitle);
+    } catch (error) {
+      console.error('Error generating session title:', error);
+    }
   };
 
   // Auto-scroll to bottom when new messages arrive
@@ -428,6 +481,12 @@ export default function AIChatPage() {
         // Don't show error to user for background operations
       });
 
+      // Step 7: Generate session title after 3rd user message (background operation)
+      generateAndUpdateSessionTitle(currentSessionId).catch(error => {
+        console.error("Failed to generate session title:", error);
+        // Don't show error to user for background operations
+      });
+
     } catch (error) {
       console.error("❌ Chat send error:", error);
       const errorMessage = error instanceof Error ? error.message : 'Something went wrong while sending.';
@@ -447,6 +506,8 @@ export default function AIChatPage() {
 
   const handleSessionClick = (sessionId: string) => {
     setSelectedSessionId(sessionId);
+    // Reset title generation state when switching sessions
+    setTitleGenerated(prev => new Set(prev));
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -557,6 +618,9 @@ export default function AIChatPage() {
       
       // Clear messages for new session
       setMessages([]);
+      
+      // Reset title generation state for new session
+      setTitleGenerated(prev => new Set(prev));
       
       // Refresh sessions list
       const { data: updatedSessions, error: sessionsError } = await supabase

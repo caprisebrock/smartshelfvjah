@@ -140,29 +140,19 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-      const sessionData: any = {
-        user_id: user.id,
-        title: 'Untitled Session',
-        link_type: linkType || 'general',
-        link_id: linkId,
-        link_title: linkTitle,
-        token_count: 0,
-        word_count: 0
+      // sessions.created_at has default now()
+      // sessions.token_count default 0 (or nullable)
+      // sessions.word_count default 0 (or nullable)
+      const payload = {
+        user_id: user?.id,
+        title: 'New Chat'
       };
 
-      // Set specific link fields based on type
-      if (linkType === 'habit' && linkId) {
-        sessionData.linked_habit = linkId;
-      } else if (linkType === 'learning_resource' && linkId) {
-        sessionData.linked_learning_resource = linkId;
-      }
+      console.log('[createNewSession] payload:', payload);
 
-      const { data: sessionDataPayload } = { data: sessionData };
-      console.log('[createNewSession] payload:', sessionDataPayload);
-
-      const { data: newSession, error } = await supabase
+      const { data, error } = await supabase
         .from('sessions')
-        .insert(sessionDataPayload)
+        .insert(payload)
         .select()
         .single();
 
@@ -176,20 +166,17 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error(`FAILED_CREATE_SESSION: ${error.message}`);
       }
 
-      console.log('[createNewSession] success:', newSession);
+      console.log('[createNewSession] success:', data);
 
-      if (newSession) {
-        localStorage.setItem('currentSessionId', newSession.id);
+      if (data) {
+        localStorage.setItem('currentSessionId', data.id);
       }
 
-      const newSessionFormatted = {
-        ...newSession,
-        id: newSession.id.toString()
-      };
-
-      dispatch({ type: 'SET_CURRENT_SESSION', payload: newSessionFormatted });
+      // Normalize the returned row id to string and push to state
+      const newSession = { ...data, id: String(data.id) };
+      dispatch({ type: 'SET_CURRENT_SESSION', payload: newSession });
       dispatch({ type: 'SET_MESSAGES', payload: [] });
-      dispatch({ type: 'SET_SESSIONS', payload: [newSessionFormatted, ...state.sessions] });
+      dispatch({ type: 'SET_SESSIONS', payload: [newSession, ...state.sessions] });
     } catch (err) {
       console.error('[createNewSession] crash:', err);
       // Note: We don't have access to addToast here, so we'll log the error
@@ -267,38 +254,19 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('📝 [sendMessage] Creating new session...');
         console.log('[sendMessage] user:', user);
         
-        // Check if we have linked resource information from the current session or UI state
-        const currentSession = state.currentSession;
-        const sessionData: any = {
-          user_id: user.id,
-          title: 'Untitled Session',
-          link_type: currentSession?.link_type || 'general',
-          token_count: 0,
-          word_count: 0
+        // sessions.created_at has default now()
+        // sessions.token_count default 0 (or nullable)
+        // sessions.word_count default 0 (or nullable)
+        const payload = {
+          user_id: user?.id,
+          title: 'New Chat'
         };
 
-        // Preserve linked resource information if it exists
-        if (currentSession?.linked_learning_resource) {
-          sessionData.linked_learning_resource = currentSession.linked_learning_resource;
-          sessionData.link_type = 'learning_resource';
-        } else if (currentSession?.linked_habit) {
-          sessionData.linked_habit = currentSession.linked_habit;
-          sessionData.link_type = 'habit';
-        }
+        console.log('[sendMessage] session payload:', payload);
 
-        // Also preserve other link fields if they exist
-        if (currentSession?.link_id) {
-          sessionData.link_id = currentSession.link_id;
-        }
-        if (currentSession?.link_title) {
-          sessionData.link_title = currentSession.link_title;
-        }
-
-        console.log('[sendMessage] session payload:', sessionData);
-
-        const { data: newSession, error: sessionError } = await supabase
+        const { data, error: sessionError } = await supabase
           .from('sessions')
-          .insert(sessionData)
+          .insert(payload)
           .select()
           .single();
 
@@ -312,28 +280,15 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return false;
         }
 
-        console.log('[sendMessage] session created successfully:', newSession);
+        console.log('[sendMessage] session created successfully:', data);
 
-        sessionId = newSession.id;
+        sessionId = data.id;
         localStorage.setItem('currentSessionId', sessionId as string);
         
-        // Update local state with the new session, preserving linked resource info
-        const session = {
-          id: sessionId as string,
-          title: 'Untitled Session',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          token_count: 0,
-          word_count: 0,
-          link_type: sessionData.link_type,
-          link_id: sessionData.link_id,
-          link_title: sessionData.link_title,
-          linked_habit: sessionData.linked_habit,
-          linked_learning_resource: sessionData.linked_learning_resource
-        };
-        
-        dispatch({ type: 'SET_CURRENT_SESSION', payload: session });
-        dispatch({ type: 'SET_SESSIONS', payload: [session, ...state.sessions] });
+        // Normalize the returned row id to string and push to state
+        const newSession = { ...data, id: String(data.id) };
+        dispatch({ type: 'SET_CURRENT_SESSION', payload: newSession });
+        dispatch({ type: 'SET_SESSIONS', payload: [newSession, ...state.sessions] });
       }
 
       // Ensure sessionId is not null at this point

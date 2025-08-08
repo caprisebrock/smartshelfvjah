@@ -614,12 +614,12 @@ export default function AIChatPage() {
     console.log('[handleNewChat] link data:', { linkType, linkId, linkTitle });
     
     try {
+      // sessions.created_at has default now()
+      // sessions.token_count default 0 (or nullable)
+      // sessions.word_count default 0 (or nullable)
       const sessionPayload = {
         user_id: user.id,
-        title: "Untitled Chat",
-        link_type: linkType,
-        link_id: linkId,
-        link_title: linkTitle,
+        title: "New Chat"
       };
       
       console.log('[handleNewChat] session payload:', sessionPayload);

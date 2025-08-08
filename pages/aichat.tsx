@@ -205,8 +205,14 @@ export default function AIChatPage() {
         },
         (payload) => {
           const newMessage = payload.new;
+          
+          // Map sender field to role for compatibility
+          const processedMessage = {
+            ...newMessage,
+            role: newMessage.sender as 'user' | 'assistant'
+          };
 
-          setMessages((prev) => [...prev, newMessage]);
+          setMessages((prev) => [...prev, processedMessage]);
         }
       )
       .subscribe();
@@ -349,6 +355,7 @@ export default function AIChatPage() {
         id: uuid(), // temp ID
         content: messageContent,
         sender: 'user',
+        role: 'user',
         created_at: new Date().toISOString(),
         session_id: selectedSessionId,
       }
@@ -397,6 +404,7 @@ export default function AIChatPage() {
           id: uuid(), // temp ID
           content: reply,
           sender: 'assistant',
+          role: 'assistant',
           created_at: new Date().toISOString(),
           session_id: currentSessionId,
         }
@@ -679,8 +687,10 @@ export default function AIChatPage() {
 
                         {/* MESSAGE BUBBLE */}
                         <div
-                          className={`max-w-[70%] px-4 py-2 rounded-xl text-sm whitespace-pre-wrap
-                            ${message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-900'}`}
+                          className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap shadow-sm
+                            ${message.role === 'user' 
+                              ? 'bg-blue-500 text-white rounded-br-md' 
+                              : 'bg-gray-100 text-gray-900 rounded-bl-md border border-gray-200'}`}
                         >
                           {message.content}
                         </div>

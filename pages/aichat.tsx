@@ -183,6 +183,11 @@ export default function AIChatPage() {
     const mostRecentSession = sessions[0];
     if (mostRecentSession) {
       setSelectedSessionId(mostRecentSession.id);
+      console.log('Auto-selected most recent session:', mostRecentSession.title);
+    } else {
+      console.warn('No sessions found for user');
+    }
+  }, [user?.id, sessions, selectedSessionId]);
 
   // Supabase Realtime listener for session messages
   useEffect(() => {
@@ -210,11 +215,6 @@ export default function AIChatPage() {
       supabase.removeChannel(channel);
     };
   }, [selectedSessionId]);
-      console.log('Auto-selected most recent session:', mostRecentSession.title);
-    } else {
-      console.warn('No sessions found for user');
-    }
-  }, [user?.id, sessions, selectedSessionId]);
 
   // Load messages for selected session
   useEffect(() => {

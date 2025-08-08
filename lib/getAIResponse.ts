@@ -164,12 +164,12 @@ export async function getAIResponse(
       throw new Error(`Session creation failed: ${sessionError.message}`);
     }
 
-    const sessionId = newSession.id.toString();
+    const newSessionId = newSession.id.toString();
 
     // 3. Save user message to session_messages
     console.log('💾 [getAIResponse] Saving user message...');
     const userMessageData = {
-      session_id: sessionId,
+      session_id: newSessionId,
       user_id: user.id,
       sender: 'user' as const,
       content: userMessage.trim(),
@@ -249,7 +249,7 @@ export async function getAIResponse(
     // 6. Save AI message to session_messages
     console.log('💾 [getAIResponse] Saving AI message...');
     const aiMessageData = {
-      session_id: sessionId,
+      session_id: newSessionId,
       user_id: user.id,
       sender: 'assistant' as const,
       content: aiResponse,
@@ -282,7 +282,7 @@ export async function getAIResponse(
     });
 
     return {
-      sessionId,
+      sessionId: newSessionId,
       aiResponse
     };
 

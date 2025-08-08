@@ -208,7 +208,9 @@ export default function AIChatPage() {
           
           // Map sender field to role for compatibility
           const processedMessage = {
-            ...newMessage,
+            id: newMessage.id,
+            content: newMessage.content,
+            created_at: newMessage.created_at,
             role: newMessage.sender as 'user' | 'assistant'
           };
 
@@ -718,7 +720,7 @@ export default function AIChatPage() {
               </div>
             ) : (
               (() => {
-                let lastDate = null;
+                let lastDate: string | null = null;
                 return messages.map((message, i) => {
                   const date = new Date(message.created_at);
                   if (isNaN(date.getTime())) return null; // 🚫 Skip invalid messages
@@ -732,7 +734,7 @@ export default function AIChatPage() {
                       {showDate && (
                         <div className="flex justify-center my-4">
                           <div className="text-gray-400 text-xs font-medium bg-gray-50 px-3 py-1 rounded-full">
-                            {formatDateLabel(date)}
+                            {formatDateLabel(message.created_at)}
                           </div>
                         </div>
                       )}

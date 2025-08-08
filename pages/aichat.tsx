@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabaseClient';
 import { saveMessageToSupabase } from '../lib/supabase/saveMessageToSupabase';
 import { isToday, isYesterday, format } from 'date-fns';
 import { v4 as uuid } from 'uuid';
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 
 // Helper function to group sessions by link type
 const groupSessionsByType = (sessions: any[]) => {
@@ -106,6 +107,10 @@ export default function AIChatPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<{ id: string; title: string } | null>(null);
 
   // Function to load messages for an existing session
   const loadMessagesForSession = async (sessionId: string) => {
@@ -475,18 +480,21 @@ export default function AIChatPage() {
     }
   };
 
-  const handleDeleteSession = async (sessionId: string, sessionTitle: string) => {
-    // Confirm before deleting
-    if (!confirm(`Are you sure you want to delete "${sessionTitle}"? This will permanently remove the session and all its messages.`)) {
-      return;
-    }
+  const handleDeleteSession = (sessionId: string, sessionTitle: string) => {
+    // Set the session to delete and show the modal
+    setSessionToDelete({ id: sessionId, title: sessionTitle });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
 
     try {
       // Step 1: Delete all messages in the session
       const { error: messagesError } = await supabase
         .from('session_messages')
         .delete()
-        .eq('session_id', sessionId);
+        .eq('session_id', sessionToDelete.id);
 
       if (messagesError) {
         console.error('Error deleting session messages:', messagesError);
@@ -498,7 +506,7 @@ export default function AIChatPage() {
       const { error: sessionError } = await supabase
         .from('sessions')
         .delete()
-        .eq('id', sessionId);
+        .eq('id', sessionToDelete.id);
 
       if (sessionError) {
         console.error('Error deleting session:', sessionError);
@@ -507,10 +515,10 @@ export default function AIChatPage() {
       }
 
       // Step 3: Optimistically update local state
-      setSessions((prev) => prev.filter(session => session.id !== sessionId));
+      setSessions((prev) => prev.filter(session => session.id !== sessionToDelete.id));
 
       // Step 4: If the deleted session was currently selected, clear the selection
-      if (selectedSessionId === sessionId) {
+      if (selectedSessionId === sessionToDelete.id) {
         setSelectedSessionId(null);
         setMessages([]);
       }
@@ -983,6 +991,20 @@ export default function AIChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setSessionToDelete(null);
+        }}
+        onConfirm={confirmDeleteSession}
+        title="Delete this session?"
+        message={`This will permanently remove "${sessionToDelete?.title || 'Untitled'}" and all its messages. This action cannot be undone.`}
+        confirmText="Delete Session"
+        cancelText="Cancel"
+      />
     </>
   );
 }

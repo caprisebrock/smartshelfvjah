@@ -23,7 +23,7 @@ interface Message {
 }
 
 interface AIResponseResult {
-  sessionId: string;
+  sessionId?: string;
   aiResponse: string;
 }
 
@@ -79,131 +79,50 @@ export async function getAIResponse(
       throw new Error(`Authentication failed: ${authError.message}`);
     }
 
-    // 2. Get linked resource information if sessionId is provided
+    // 2. Build linked resource and note context if sessionId provided
     let linkedResourceContext = '';
+    let noteContext = '';
     if (sessionId) {
-      console.log('🔗 [getAIResponse] Checking for linked resource information...');
+      console.log('🔗 [getAIResponse] Checking for session context...');
       try {
-        // Get session details to check for linked learning resource
-        const { data: sessionData, error: sessionError } = await supabase
+        const { data: sessionData } = await supabase
           .from('sessions')
-          .select('linked_learning_resource')
+          .select('linked_learning_resource, note_id')
           .eq('id', sessionId)
           .single();
-
-        if (sessionError) {
-          console.error('❌ [getAIResponse] Error fetching session:', sessionError);
-        } else if (sessionData?.linked_learning_resource) {
-          console.log('📚 [getAIResponse] Found linked learning resource:', sessionData.linked_learning_resource);
-          
-          // Query learning_resources table for details
-          const { data: resourceData, error: resourceError } = await supabase
+        if (sessionData?.linked_learning_resource) {
+          const { data: resourceData } = await supabase
             .from('learning_resources')
             .select('type, title, author, total_minutes, minutes_completed, streak_days')
             .eq('id', sessionData.linked_learning_resource)
             .single();
-
-          if (resourceError) {
-            console.error('❌ [getAIResponse] Error fetching learning resource:', resourceError);
-          } else if (resourceData) {
-            console.log('📚 [getAIResponse] Learning resource details:', resourceData);
-            
-            // Format the context message
-            linkedResourceContext = `This chat is linked to a ${resourceData.type} titled "${resourceData.title}" by ${resourceData.author || 'Unknown'}. Total duration: ${resourceData.total_minutes || 0} minutes. Progress: ${resourceData.minutes_completed || 0} minutes completed. Current streak: ${resourceData.streak_days || 0} days.`;
+          if (resourceData) {
+            linkedResourceContext = `Linked ${resourceData.type} "${resourceData.title}" by ${resourceData.author || 'Unknown'}. Duration ${resourceData.total_minutes || 0}m, completed ${resourceData.minutes_completed || 0}m, streak ${resourceData.streak_days || 0} days.`;
           }
         }
-      } catch (error) {
-        console.error('❌ [getAIResponse] Error processing linked resource:', error);
+        if (sessionData?.note_id) {
+          const { data: noteData } = await supabase
+            .from('notes')
+            .select('title, content')
+            .eq('id', sessionData.note_id)
+            .single();
+          if (noteData) {
+            const summary = compressContent(noteData.content);
+            noteContext = `Note: ${noteData.title || 'Untitled'}. Summary: ${summary}`;
+          }
+        }
+      } catch (e) {
+        console.error('❌ [getAIResponse] Failed to build context', e);
       }
     }
 
-    // 3. Create new session in Supabase (let Supabase autogenerate the ID)
-    console.log('📝 [getAIResponse] Creating new session...');
-    
-    // Only include valid fields that exist in the sessions table
-    const sessionData = {
-      user_id: user.id,
-      title: 'New Chat Session',
-      token_count: 0,
-      word_count: 0
-      // Note: No 'id' field - let Supabase autogenerate it
-      // Note: No 'created_at' field - let Supabase set it
-      // Note: No 'updated_at' field - let Supabase set it
-      // Note: No 'link_type' field - not in your schema
-      // Note: No 'linked_habit' field - optional, not setting
-      // Note: No 'linked_learning_resource' field - optional, not setting
-    };
-
-    console.log('SESSION DATA:', JSON.stringify(sessionData, null, 2));
-
-    let newSession;
-    try {
-      const { data, error: sessionError } = await supabase
-        .from('sessions')
-        .insert(sessionData)
-        .select()
-        .single();
-
-      if (sessionError) {
-        console.error('❌ [getAIResponse] Session creation failed:', sessionError);
-        console.error('SESSION ERROR:', JSON.stringify(sessionError, null, 2));
-        throw new Error(`Session creation failed: ${sessionError.message}`);
-      }
-
-      if (!data) {
-        console.error('❌ [getAIResponse] No session data returned from insert');
-        throw new Error('Session creation returned no data');
-      }
-
-      newSession = data;
-      console.log('SESSION SUCCESS:', JSON.stringify(newSession, null, 2));
-      console.log('✅ [getAIResponse] Session created successfully:', newSession.id);
-
-    } catch (sessionError: any) {
-      console.error('❌ [getAIResponse] Session creation failed:', sessionError);
-      throw new Error(`Session creation failed: ${sessionError.message}`);
-    }
-
-    const newSessionId = newSession.id.toString();
-
-    // 3. Save user message to session_messages
-    console.log('💾 [getAIResponse] Saving user message...');
-    const userMessageData = {
-      session_id: newSessionId,
-      user_id: user.id,
-      sender: 'user' as const,
-      content: userMessage.trim(),
-      token_count: 0
-    };
-
-    console.log('USER MESSAGE DATA:', JSON.stringify(userMessageData, null, 2));
-
-    const { data: userMessageResult, error: userMessageError } = await supabase
-      .from('session_messages')
-      .insert(userMessageData)
-      .select()
-      .single();
-
-    if (userMessageError) {
-      console.error('❌ [getAIResponse] Failed to save user message:', userMessageError);
-      console.error('USER MESSAGE ERROR:', JSON.stringify(userMessageError, null, 2));
-      throw new Error('Could not save user message');
-    }
-
-    console.log('✅ [getAIResponse] User message saved:', userMessageResult.id);
-
-    // 4. Prepare messages for OpenAI API
+    // 3. Prepare messages for OpenAI API
     console.log('🤖 [getAIResponse] Preparing messages for OpenAI...');
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
 
-    // Add system message with linked resource context if available
-    if (linkedResourceContext) {
-      messages.push({
-        role: 'system',
-        content: linkedResourceContext
-      });
-      console.log('🔗 [getAIResponse] Added linked resource context:', linkedResourceContext);
-    }
+    // Add combined context
+    const systemContext = [linkedResourceContext, noteContext].filter(Boolean).join(' \n ');
+    if (systemContext) messages.push({ role: 'system', content: systemContext });
 
     // Add previous messages
     messages.push(...previousMessages.map(msg => ({
@@ -220,7 +139,7 @@ export async function getAIResponse(
     const requestPayload = { messages };
     console.log('📤 [getAIResponse] Sending to OpenAI API:', JSON.stringify(requestPayload, null, 2));
 
-    // 5. Call OpenAI API
+    // 4. Call OpenAI API
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -246,43 +165,17 @@ export async function getAIResponse(
     const aiResponse = data.response.content;
     console.log('✅ [getAIResponse] AI Response received:', aiResponse);
 
-    // 6. Save AI message to session_messages
-    console.log('💾 [getAIResponse] Saving AI message...');
-    const aiMessageData = {
-      session_id: newSessionId,
-      user_id: user.id,
-      sender: 'assistant' as const,
-      content: aiResponse,
-      token_count: 0
-    };
-
-    console.log('AI MESSAGE DATA:', JSON.stringify(aiMessageData, null, 2));
-
-    const { data: aiMessageResult, error: aiMessageError } = await supabase
-      .from('session_messages')
-      .insert(aiMessageData)
-      .select()
-      .single();
-
-    if (aiMessageError) {
-      console.error('❌ [getAIResponse] Failed to save AI message:', aiMessageError);
-      console.error('AI MESSAGE ERROR:', JSON.stringify(aiMessageError, null, 2));
-      throw new Error('Could not save AI reply');
-    }
-
-    console.log('✅ [getAIResponse] AI message saved:', aiMessageResult.id);
+    // Persisting AI message is handled by caller now
 
     // 7. Return success result
     console.log('🎉 [getAIResponse] Function completed successfully');
     console.log('📊 [getAIResponse] Final result:', {
       sessionId,
-      userMessageId: userMessageResult.id,
-      aiMessageId: aiMessageResult.id,
       aiResponseLength: aiResponse.length
     });
 
     return {
-      sessionId: newSessionId,
+      sessionId,
       aiResponse
     };
 
@@ -294,6 +187,18 @@ export async function getAIResponse(
       name: error.name
     });
     throw error;
+  }
+}
+
+// Compact note content for prompt to ~1000 chars
+function compressContent(content: any): string {
+  try {
+    const raw = typeof content === 'string' ? content : JSON.stringify(content);
+    if (!raw) return '';
+    const trimmed = raw.replace(/\s+/g, ' ').slice(0, 1000);
+    return trimmed;
+  } catch {
+    return '';
   }
 }
 

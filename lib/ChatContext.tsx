@@ -10,6 +10,7 @@ export interface Session {
   updated_at: string;
   token_count: number;
   word_count: number;
+  note_id?: string | null;
   link_type?: 'habit' | 'learning_resource' | 'general';
   link_id?: string;
   link_title?: string;
@@ -47,7 +48,8 @@ const ChatContext = createContext<{
   state: ChatState;
   sendMessage: (content: string) => Promise<boolean>;
   loadSession: (sessionId: string) => Promise<void>;
-  createNewSession: (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string) => Promise<void>;
+  createNewSession: (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string, noteId?: string) => Promise<void>;
+  ensureNoteSession: (noteId: string) => Promise<string | null>;
   generateSessionTitle: (sessionId: string) => Promise<void>;
 } | null>(null);
 
@@ -130,7 +132,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user?.id]);
 
   // Create new session
-  const createNewSession = async (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string) => {
+  const createNewSession = async (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string, noteId?: string) => {
     console.log('[createNewSession] START');
     console.log('[createNewSession] user:', user);
     
@@ -158,10 +160,11 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // sessions.created_at has default now()
       // sessions.token_count default 0 (or nullable)
       // sessions.word_count default 0 (or nullable)
-      const payload = {
+      const payload: Record<string, any> = {
         user_id: uid,
         title: 'New Chat'
       };
+      if (noteId) payload.note_id = noteId;
 
       console.log('[createNewSession] payload:', payload);
 
@@ -197,6 +200,71 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Note: We don't have access to addToast here, so we'll log the error
       // The calling component should handle displaying the error to the user
       throw err; // Re-throw to let the calling component handle it
+    }
+  };
+
+  // Ensure there is a session for a given note, set it current, and load messages
+  const ensureNoteSession = async (noteId: string): Promise<string | null> => {
+    if (!user?.id) return null;
+    try {
+      const { data: authSession } = await supabase.auth.getSession();
+      if (!authSession?.session?.user?.id) return null;
+      const uid = authSession.session.user.id;
+
+      // Try to find existing
+      const { data: existing, error: findErr } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', uid)
+        .eq('note_id', noteId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let targetSession = existing;
+      if (!existing) {
+        const { data: created, error: cErr } = await supabase
+          .from('sessions')
+          .insert({ user_id: uid, title: 'Untitled Chat', note_id: noteId })
+          .select('*')
+          .single();
+        if (cErr) throw cErr;
+        targetSession = created;
+      } else if (findErr && (findErr as any).code !== 'PGRST116') {
+        console.error('ensureNoteSession find error', findErr);
+      }
+
+      if (!targetSession) return null;
+
+      const normalized = { ...targetSession, id: String(targetSession.id) } as Session;
+      localStorage.setItem('currentSessionId', normalized.id);
+      dispatch({ type: 'SET_CURRENT_SESSION', payload: normalized });
+
+      // Load messages for this session
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('session_messages')
+        .select('*')
+        .eq('session_id', normalized.id)
+        .order('created_at', { ascending: true });
+      if (!messagesError) {
+        const messages = (messagesData || []).map(msg => ({
+          ...msg,
+          id: msg.id.toString(),
+          session_id: msg.session_id.toString()
+        }));
+        dispatch({ type: 'SET_MESSAGES', payload: messages });
+      }
+
+      // Add to sessions list if not present
+      const existsInState = state.sessions.some(s => s.id === normalized.id);
+      if (!existsInState) {
+        dispatch({ type: 'SET_SESSIONS', payload: [normalized, ...state.sessions] });
+      }
+
+      return normalized.id;
+    } catch (e) {
+      console.error('ensureNoteSession error', e);
+      return null;
     }
   };
 
@@ -350,7 +418,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Get AI response using getAIResponse function with session context
       console.log('🤖 [sendMessage] Getting AI response with session context...');
-      const result = await getAIResponse(content, state.messages, sessionId as string);
+      const result = await getAIResponse(content, state.messages.slice(-20), sessionId as string);
       const aiResponse = result.aiResponse;
 
       // Create AI message object for state
@@ -365,6 +433,16 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Dispatch AI message to state
       dispatch({ type: 'ADD_MESSAGE', payload: aiMessageData });
+
+      // Save assistant message to Supabase
+      await supabase
+        .from('session_messages')
+        .insert({
+          session_id: sessionId as string,
+          sender: 'assistant',
+          content: aiResponse,
+          token_count: 0
+        });
 
       console.log('🎉 [sendMessage] Message flow completed successfully');
       console.log('📊 [sendMessage] Final state:', {
@@ -431,6 +509,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       sendMessage,
       loadSession,
       createNewSession,
+      ensureNoteSession,
       generateSessionTitle
     }}>
       {children}

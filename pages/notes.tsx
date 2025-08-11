@@ -54,7 +54,7 @@ export default function NotesPage() {
   const [typing, setTyping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [notesCollapsed, setNotesCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Refs
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -99,213 +99,227 @@ export default function NotesPage() {
         return; 
       }
       
+      // Flush any pending saves for the previous note
+      if (selectedNoteId) {
+        // TODO: Implement flushNoteUpdates if needed
+      }
+      
       try {
-        // IMPORTANT: do not call sendMessage here; only ensure we have a session
         const session = await getOrCreateNoteSession(selectedNoteId);
         if (!cancelled) {
           setSessionId(session.id);
-          // Set as current session in ChatContext
+          // Set current session in ChatContext
           await setCurrentSessionId(session.id);
         }
       } catch (error) {
-        console.error('Error setting up note session:', error);
-        if (!cancelled) setSessionId(null);
+        console.error('Failed to get/create note session:', error);
       }
     }
     
     run();
-    return () => { cancelled = true; };
+    
+    return () => {
+      cancelled = true;
+    };
   }, [selectedNoteId, setCurrentSessionId]);
 
-  // Note selection logic
-  const selectNote = useCallback(async (id: string) => {
-    // Flush any pending updates for the previous note
-    if (selectedNoteId) {
-      // Use existing flushNoteUpdates if available, otherwise clear timeout manually
-      if (typeof flushNoteUpdates === 'function') {
-        flushNoteUpdates(selectedNoteId);
-      }
-    }
+  // Filter notes based on search query
+  const filteredNotes = useMemo(() => {
+    if (!searchQuery.trim()) return notes;
     
-    setSelectedNoteId(id);
-    if (!drafts[id]) {
-      const n = notes.find(n => n.id === id) ?? await getNoteById(id);
-      setDrafts(prev => ({ 
-        ...prev, 
-        [id]: { 
-          title: n.title ?? 'Untitled', 
-          content: n.content ?? {} 
-        } 
+    return notes.filter(note => {
+      const title = (note.title || 'Untitled').toLowerCase();
+      const content = JSON.stringify(note.content).toLowerCase();
+      const query = searchQuery.toLowerCase();
+      
+      return title.includes(query) || content.includes(query);
+    });
+  }, [notes, searchQuery]);
+
+  // Get current draft
+  const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
+
+  // Get current messages for the selected note
+  const currentMessages = useMemo(() => {
+    if (!sessionId) return [];
+    
+    // Combine real messages from ChatContext with optimistic messages
+    const realMessages = state.messages.filter(msg => msg.session_id === sessionId);
+    return [...realMessages, ...optimisticMessages.filter(msg => msg.session_id === sessionId)];
+  }, [state.messages, optimisticMessages, sessionId]);
+
+  // Handle note selection
+  const selectNote = async (noteId: string) => {
+    setSelectedNoteId(noteId);
+    
+    // Get or create draft for this note
+    if (!drafts[noteId]) {
+      const note = notes.find(n => n.id === noteId) || await getNoteById(noteId);
+      setDrafts(prev => ({
+        ...prev,
+        [noteId]: {
+          title: note.title || 'Untitled',
+          content: note.content || { type: 'plain', text: '' }
+        }
       }));
     }
     
-    // Set local state once when switching notes
-    const draft = drafts[id];
-    if (draft) {
-      setLocalTitle(draft.title || 'Untitled');
-      setLocalContent(draft.content?.text || '');
-    } else {
-      const n = notes.find(n => n.id === id);
-      setLocalTitle(n?.title || 'Untitled');
-      setLocalContent(n?.content?.text || '');
+    // Set local editing state
+    const draft = drafts[noteId] || { title: 'Untitled', content: { type: 'plain', text: '' } };
+    setLocalTitle(draft.title);
+    setLocalContent(draft.content.text || '');
+    setIsTitleEditing(false);
+  };
+
+  // Handle title changes
+  const handleTitleChange = (newTitle: string) => {
+    setLocalTitle(newTitle);
+    if (selectedNoteId) {
+      setDrafts(prev => ({
+        ...prev,
+        [selectedNoteId]: {
+          ...prev[selectedNoteId],
+          title: newTitle
+        }
+      }));
+      saveSelected(selectedNoteId, {
+        title: newTitle,
+        content: drafts[selectedNoteId]?.content || {}
+      });
     }
+  };
+
+  // Handle title blur (save on blur)
+  const handleTitleBlur = () => {
     setIsTitleEditing(false);
-    
-    // Clear optimistic messages when switching notes
-    setOptimisticMessages([]);
-  }, [notes, drafts, selectedNoteId]);
+    if (selectedNoteId && localTitle.trim() !== drafts[selectedNoteId]?.title) {
+      const finalTitle = localTitle.trim() || 'Untitled';
+      setLocalTitle(finalTitle);
+      setDrafts(prev => ({
+        ...prev,
+        [selectedNoteId]: {
+          ...prev[selectedNoteId],
+          title: finalTitle
+        }
+      }));
+      saveSelected(selectedNoteId, {
+        title: finalTitle,
+        content: drafts[selectedNoteId]?.content || {}
+      });
+    }
+  };
 
-  // Title change handlers
-  const handleTitleChange = useCallback((val: string) => {
-    setLocalTitle(val);
-    // Don't save immediately - wait for blur or Enter
-  }, []);
-
-  const handleTitleBlur = useCallback(() => {
-    if (!selectedNoteId) return;
-    
-    const trimmedTitle = localTitle.trim();
-    const finalTitle = trimmedTitle || 'Untitled';
-    
-    // Update drafts and save
-    setDrafts(prev => ({
-      ...prev,
-      [selectedNoteId]: {
-        ...prev[selectedNoteId],
-        title: finalTitle
-      }
-    }));
-    
-    // Save to Supabase - get current content from drafts
-    const currentContent = drafts[selectedNoteId]?.content || {};
-    saveSelected(selectedNoteId, { title: finalTitle, content: currentContent });
-    setIsTitleEditing(false);
-  }, [selectedNoteId, localTitle, saveSelected, drafts]);
-
-  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  // Handle title key press (save on Enter)
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleTitleBlur();
+      e.currentTarget.blur();
     }
-  }, [handleTitleBlur]);
+  };
 
-  // Content change handlers
-  const handleContentChange = useCallback((nextContent: any) => {
-    if (!selectedNoteId) return;
-    
-    setLocalContent(nextContent.text || '');
-    
-    setDrafts(prev => {
-      const next = { 
-        ...(prev[selectedNoteId] ?? { title: 'Untitled', content: {} }), 
-        content: nextContent 
-      };
-      const all = { ...prev, [selectedNoteId]: next };
-      saveSelected(selectedNoteId, next);
-      return all;
-    });
-  }, [selectedNoteId, saveSelected]);
+  // Handle content changes
+  const handleContentChange = (newContent: any) => {
+    setLocalContent(newContent.text || '');
+    if (selectedNoteId) {
+      setDrafts(prev => ({
+        ...prev,
+        [selectedNoteId]: {
+          ...prev[selectedNoteId],
+          content: newContent
+        }
+      }));
+      saveSelected(selectedNoteId, {
+        title: drafts[selectedNoteId]?.title || 'Untitled',
+        content: newContent
+      });
+    }
+  };
 
-  // Optimistic send message handler
+  // Handle sending messages
   const handleSendMessage = async () => {
-    const text = inputValue.trim();
-    if (!text || !sessionId) return;
+    if (!inputValue.trim() || !sessionId) return;
     
-    // Clear input immediately
+    const messageContent = inputValue.trim();
     setInputValue('');
     
-    // Create optimistic message
-    const tempId = `temp-${Date.now()}-user`;
-    const optimisticMessage = {
-      id: tempId,
+    // Add optimistic message
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
       session_id: sessionId,
       sender: 'user' as const,
-      content: text,
+      content: messageContent,
       created_at: new Date().toISOString(),
       pending: true
     };
     
-    // Add to optimistic messages
-    setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    
-    // Scroll to bottom
-    requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    });
+    setOptimisticMessages(prev => [...prev, tempMessage]);
     
     try {
       // Send message via ChatContext
-      await sendMessage(text);
+      await sendMessage(messageContent);
       
       // Remove optimistic message on success
-      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+      
+      // Scroll to bottom
+      if (bottomRef.current) {
+        requestAnimationFrame(() => {
+          bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        });
+      }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Failed to send message:', error);
       // Mark optimistic message as error
       setOptimisticMessages(prev => 
-        prev.map(m => m.id === tempId ? { ...m, error: true } : m)
+        prev.map(msg => 
+          msg.id === tempMessage.id ? { ...msg, error: true, pending: false } : msg
+        )
       );
     }
   };
 
-  // Get messages for current session (memoized to avoid re-renders)
-  const currentMessages = useMemo(() => {
-    if (!sessionId) return [];
-    
-    // Get messages from ChatContext for this session
-    const contextMessages = state.messages.filter(m => m.session_id === sessionId);
-    
-    // Combine with optimistic messages
-    const optimisticForSession = optimisticMessages.filter(m => m.session_id === sessionId);
-    
-    return [...contextMessages, ...optimisticForSession];
-  }, [sessionId, state.messages, optimisticMessages]);
-
+  // Handle creating new note
   const handleNewNote = async () => {
     if (!user?.id) return;
+    
     try {
       const newNote = await quickCreateNote(user.id);
       setNotes(prev => [newNote, ...prev]);
       await selectNote(newNote.id);
     } catch (error) {
-      console.error('Error creating new note:', error);
+      console.error('Failed to create note:', error);
+      // addToast('Failed to create note', 'error'); // Assuming addToast is available
     }
   };
 
+  // Handle deleting note
   const handleDeleteNote = async (noteId: string) => {
     try {
       await deleteNoteById(noteId);
       setNotes(prev => prev.filter(n => n.id !== noteId));
-      if (selectedNoteId === noteId) {
-        setSelectedNoteId(null);
-      }
+      
+      // Clean up drafts
       setDrafts(prev => {
-        const { [noteId]: deleted, ...rest } = prev;
+        const { [noteId]: _, ...rest } = prev;
         return rest;
       });
-      setShowDeleteConfirm(null);
+      
+      // Clear selection if this was the selected note
+      if (selectedNoteId === noteId) {
+        setSelectedNoteId(null);
+        setLocalTitle('');
+        setLocalContent('');
+      }
+      
+      // addToast('Note deleted successfully', 'success'); // Assuming addToast is available
     } catch (error) {
-      console.error('Error deleting note:', error);
+      console.error('Failed to delete note:', error);
+      // addToast('Failed to delete note', 'error'); // Assuming addToast is available
     }
   };
 
-  // Open Chat for selected note - routes to existing AI Chat
-  const openChatForSelected = () => {
-    if (!selectedNoteId) return;
-    router.push(`/aichat?noteId=${selectedNoteId}`);
-  };
-
-  // Filter notes based on search
-  const filteredNotes = notes.filter(note => {
-    const title = (note.title || 'Untitled').toLowerCase();
-    const content = JSON.stringify(note.content).toLowerCase();
-    const query = searchQuery.toLowerCase();
-    
-    return title.includes(query) || content.includes(query);
-  });
-
-  // Get current draft
-  const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
+  // Grid template based on sidebar state
+  const gridTemplate = sidebarOpen ? '280px 1fr 420px' : '0 1fr 1fr';
 
   return (
     <>
@@ -335,16 +349,14 @@ export default function NotesPage() {
           </div>
         </header>
 
-        <div className={clsx(
-          "grid min-h-[calc(100vh-56px)] pt-[56px]",
-          notesCollapsed
-            ? "grid-cols-[0_1fr_380px]"
-            : "grid-cols-[260px_1fr_380px]"
-        )}>
+        <div 
+          className="grid min-h-[calc(100vh-56px)] pt-[56px]"
+          style={{ gridTemplateColumns: gridTemplate }}
+        >
           <aside
             className={clsx(
-              "overflow-hidden border-r border-neutral-200 transition-[width] duration-200 ease-out",
-              notesCollapsed ? "w-0 opacity-0 pointer-events-none" : "w-[260px] opacity-100"
+              "overflow-hidden border-r border-neutral-200 transition-all duration-200 ease-out",
+              sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
             )}
           >
             {/* Notes List */}
@@ -355,7 +367,7 @@ export default function NotesPage() {
                 <button
                   type="button"
                   className="p-1 hover:bg-gray-100 rounded transition-colors"
-                  onClick={() => setNotesCollapsed(true)}
+                  onClick={() => setSidebarOpen(false)}
                   aria-label="Collapse notes sidebar"
                 >
                   <ChevronLeft className="w-4 h-4 text-gray-500" />
@@ -488,11 +500,11 @@ export default function NotesPage() {
         </div>
 
         {/* Floating expand button when sidebar is collapsed */}
-        {notesCollapsed && (
+        {!sidebarOpen && (
           <button
             type="button"
             className="fixed left-4 top-20 z-30 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-lg transition-all hover:shadow-xl"
-            onClick={() => setNotesCollapsed(false)}
+            onClick={() => setSidebarOpen(true)}
             aria-label="Expand notes sidebar"
             title="Show notes list"
           >

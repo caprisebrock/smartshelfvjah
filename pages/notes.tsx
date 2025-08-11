@@ -445,42 +445,32 @@ export default function NotesPage() {
           )}
         </main>
 
+        {/* RIGHT: chat pane */}
         <section className="notes-chat-pane">
-          {selectedNoteId && currentDraft ? (
-            <>
-              <div className="chat-header">
-                Chat for: {currentDraft?.title ?? 'Untitled'}
-              </div>
-              
-              <div className="chat-scroll">
-                <MessageList 
-                  messages={currentMessages} 
-                  typing={typing && state.sending}
-                  bottomRef={bottomRef}
-                />
-              </div>
-              
-              <div className="chat-dock">
-                <ChatInput
-                  value={inputValue}
-                  onChange={setInputValue}
-                  onSend={handleSendMessage}
-                  sending={state.sending}
-                  disabled={!sessionId || !inputValue.trim()}
-                  onLinkChat={() => {}}
-                  onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
-                />
-              </div>
-            </>
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center text-zinc-500">
-                <div className="text-4xl mb-4">💬</div>
-                <div className="text-lg font-medium mb-2">Select a note to chat</div>
-                <div className="text-sm">Choose a note to start a conversation</div>
-              </div>
-            </div>
-          )}
+          <header className="notes-chat-header">
+            <div className="notes-chat-title">Chat for: {currentDraft?.title ?? 'Untitled'}</div>
+          </header>
+
+          <div className="notes-chat-scroll" id="notes-chat-scroll">
+            <MessageList 
+              messages={currentMessages} 
+              typing={typing && state.sending}
+              bottomRef={bottomRef}
+            />
+          </div>
+
+          <footer className="notes-chat-dock">
+            <ChatInput
+              value={inputValue}
+              onChange={setInputValue}
+              onSend={handleSendMessage}
+              sending={state.sending}
+              disabled={!sessionId || !inputValue.trim()}
+              onLinkChat={() => {}}
+              onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
+              className="notes-chat-input"
+            />
+          </footer>
         </section>
       </div>
 

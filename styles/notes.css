@@ -12,19 +12,17 @@
   padding: 12px 16px 8px;
 }
 
-/* 3-column area fills the rest of the viewport */
+/* 3-column container should fill the viewport height under the top bar */
 .notes-main {
-  flex: 1 1 auto;
-  height: 1px;                 /* ensures flex child can grow to full height */
   display: grid;
-  grid-template-columns: 260px 1fr 360px;   /* sidebar | editor | chat */
-  gap: 16px;
-  padding: 0 16px 16px;
+  grid-template-columns: 260px 1fr 380px; /* list | editor | chat */
+  gap: 0;
+  height: calc(100vh - 56px); /* adjust if your header height differs */
 }
 
 /* Collapse behavior preserved */
 .notes-main.collapsed { 
-  grid-template-columns: 0 1fr 380px; 
+  grid-template-columns: 0 1fr 460px; 
 }
 
 .notes-list-pane { 
@@ -37,93 +35,70 @@
   padding-right: 8px; 
 }
 
-/* CHAT COLUMN — critical bits */
-/* Chat column as a positioning context */
+/* CHAT PANE = flex column */
 .notes-chat-pane {
-  position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 0;        /* allow inner scrolling */
   border-left: 1px solid #eee;
-  min-width: 320px;
-  padding-left: 12px;
 }
 
-.chat-header {
-  flex: 0 0 auto;
-  padding: 8px 0;
-  border-bottom: 1px solid #f2f2f2;
+/* header */
+.notes-chat-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  background: transparent;
+}
+
+.notes-chat-title {
+  font-size: 0.9rem;
   color: #666;
-  font-size: 13px;
 }
 
-/* Scroll area for messages */
-.chat-scroll {
+/* scrollable message region */
+.notes-chat-scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 12px;
+  background: transparent;
 }
 
-/* Input dock — flush to bottom, no gray */
-.chat-dock {
-  background: transparent;      /* remove gray */
-  padding: 0.5rem 0;             /* optional top/bottom space */
+/* dock at bottom: remove gray, center the input */
+.notes-chat-dock {
+  position: sticky;
+  bottom: 0;
+  background: transparent !important;  /* kill any inherited gray */
+  border-top: 1px solid #eee;
+  padding: 10px 12px;
   display: flex;
-  justify-content: center;       /* center horizontally */
-  align-items: center;           /* center vertically */
-  border-top: 1px solid #eee;    /* thin divider line */
-}
-
-/* Optional: make ChatInput narrower than full width if you want */
-.chat-dock .chat-input-container {
-  max-width: 95%;
-  width: 100%;
-}
-
-/* Normalize the ChatInput wrapper */
-.chat-dock > * { 
-  width: 100%; 
-  max-width: 100%; 
-  margin: 0; 
-}
-
-.chat-dock form,
-.chat-dock .chat-input-row,
-.chat-dock .input-row {
-  display: flex;
+  justify-content: center; /* center horizontally */
   align-items: center;
-  gap: 8px;
+  z-index: 1;
+}
+
+/* make input not full-bleed; tweak to taste */
+.notes-chat-input,
+.notes-chat-dock .chat-input-root {
   width: 100%;
-  margin: 0;
+  max-width: 560px;  /* narrower than panel for a clean look */
+  margin: 0 auto;
 }
 
-/* Make the textbox expand and the send button align */
-.chat-dock input[type="text"],
-.chat-dock textarea {
-  flex: 1 1 auto;
-  min-height: 40px;
+/* Remove any accidental background on nested shells */
+.notes-chat-dock *[class*="dock"],
+.notes-chat-dock *[class*="bar"],
+.notes-chat-dock *[class*="container"] {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-/* Kill stray hint/status rows that create gray gaps */
-.chat-dock .hint,
-.chat-dock .status,
-.chat-dock .helper,
-.chat-dock .subtext {
-  display: none !important;
-  height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Ensure no extra margins sneak in from component styles */
-.chat-dock * { 
-  margin-bottom: 0 !important; 
-}
-
-/* optional: keep send button visible over iOS/Safari compositing */
-.chat-dock button[type="submit"] { 
-  position: relative; 
-  z-index: 2; 
+/* Safari baseline fix: avoid input jumping when viewport resizes */
+@supports (-webkit-touch-callout: none) {
+  .notes-chat-dock {
+    transform: translateZ(0);
+    will-change: transform;
+  }
 }
 
 /* Header styling */
@@ -203,13 +178,15 @@
     border-left-color: #374151;
   }
   
-  .chat-header {
-    color: #9ca3af;
+  .notes-chat-header {
     border-bottom-color: #374151;
   }
   
-  .chat-dock {
-    background: #111827;
+  .notes-chat-title {
+    color: #9ca3af;
+  }
+  
+  .notes-chat-dock {
     border-top-color: #374151;
   }
   
@@ -239,16 +216,14 @@
 @media (max-width: 1024px) {
   .notes-main {
     grid-template-columns: 240px 1fr 320px;
-    gap: 12px;
-    padding: 0 12px 12px;
+    gap: 0;
   }
 }
 
 @media (max-width: 768px) {
   .notes-main {
     grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 0 8px 8px;
+    gap: 0;
   }
   
   .notes-main.collapsed {
@@ -266,6 +241,5 @@
   .notes-chat-pane {
     order: 2;
     border-left: none;
-    padding-left: 0;
   }
 } 

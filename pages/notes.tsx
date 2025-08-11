@@ -347,8 +347,8 @@ export default function NotesPage() {
         </div>
       </header>
 
-      <div className={`notes-main ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <aside className="notes-list-pane">
+      <div className={`grid grid-cols-[260px_1fr_380px] gap-0 min-h-[calc(100vh-56px)] ${sidebarCollapsed ? 'grid-cols-[0_1fr_460px]' : ''}`}>
+        <aside className="h-full border-r border-neutral-200">
           <div className="notes-list-header">
             <span>Notes</span>
             <button
@@ -410,7 +410,7 @@ export default function NotesPage() {
           </div>
         </aside>
 
-        <main className="notes-editor-pane">
+        <main className="h-full overflow-hidden">
           {selectedNoteId && currentDraft ? (
             <div className="h-full flex flex-col">
               <div className="p-6">
@@ -446,12 +446,16 @@ export default function NotesPage() {
         </main>
 
         {/* RIGHT: chat pane */}
-        <section className="notes-chat-pane">
-          <header className="notes-chat-header">
-            <div className="notes-chat-title">Chat for: {currentDraft?.title ?? 'Untitled'}</div>
-          </header>
+        <section className="h-full flex flex-col min-h-0 border-l border-neutral-200">
+          {/* Chat header */}
+          <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
+            <div className="text-sm text-neutral-600">
+              Chat for: {currentDraft?.title ?? 'Untitled'}
+            </div>
+          </div>
 
-          <div className="notes-chat-scroll" id="notes-chat-scroll">
+          {/* Scrollable messages */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
             <MessageList 
               messages={currentMessages} 
               typing={typing && state.sending}
@@ -459,18 +463,21 @@ export default function NotesPage() {
             />
           </div>
 
-          <footer className="notes-chat-dock">
-            <ChatInput
-              value={inputValue}
-              onChange={setInputValue}
-              onSend={handleSendMessage}
-              sending={state.sending}
-              disabled={!sessionId || !inputValue.trim()}
-              onLinkChat={() => {}}
-              onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
-              className="notes-chat-input"
-            />
-          </footer>
+          {/* Bottom dock (centered input, no gray) */}
+          <div className="sticky bottom-0 z-10 border-t border-neutral-200 bg-transparent px-3 py-3 flex justify-center">
+            <div className="w-full max-w-[560px]">
+              <ChatInput
+                value={inputValue}
+                onChange={setInputValue}
+                onSend={handleSendMessage}
+                sending={state.sending}
+                disabled={!sessionId || !inputValue.trim()}
+                onLinkChat={() => {}}
+                onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
+                className="w-full"
+              />
+            </div>
+          </div>
         </section>
       </div>
 

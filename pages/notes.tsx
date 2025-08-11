@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useUser } from '../lib/useUser';
-import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote } from '../lib/notes';
+import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../lib/notes';
 import { useChat } from '../lib/ChatContext';
 import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
 import MessageList from '../components/MessageList';
@@ -31,6 +31,11 @@ export default function NotesPage() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
   
+  // Local editing state
+  const [localTitle, setLocalTitle] = useState<string>('');
+  const [localContent, setLocalContent] = useState<string>('');
+  const [isTitleEditing, setIsTitleEditing] = useState<boolean>(false);
+  
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [inputValue, setInputValue] = useState('');
@@ -46,6 +51,11 @@ export default function NotesPage() {
       t = setTimeout(() => fn(...args), ms);
     };
   };
+
+  // Debounced search
+  const debouncedSearch = useMemo(() => debounce((query: string) => {
+    setSearchQuery(query);
+  }, 200), []);
 
   // Debounced save function
   const saveSelected = useMemo(() => debounce(async (id: string, draft: Draft) => {
@@ -65,6 +75,14 @@ export default function NotesPage() {
 
   // Note selection logic
   const selectNote = useCallback(async (id: string) => {
+    // Flush any pending updates for the previous note
+    if (selectedNoteId) {
+      // Use existing flushNoteUpdates if available, otherwise clear timeout manually
+      if (typeof flushNoteUpdates === 'function') {
+        flushNoteUpdates(selectedNoteId);
+      }
+    }
+    
     setSelectedNoteId(id);
     if (!drafts[id]) {
       const n = notes.find(n => n.id === id) ?? await getNoteById(id);
@@ -76,7 +94,19 @@ export default function NotesPage() {
         } 
       }));
     }
-  }, [notes, drafts]);
+    
+    // Set local state once when switching notes
+    const draft = drafts[id];
+    if (draft) {
+      setLocalTitle(draft.title || 'Untitled');
+      setLocalContent(draft.content?.text || '');
+    } else {
+      const n = notes.find(n => n.id === id);
+      setLocalTitle(n?.title || 'Untitled');
+      setLocalContent(n?.content?.text || '');
+    }
+    setIsTitleEditing(false);
+  }, [notes, drafts, selectedNoteId]);
 
   // Ensure note session exists and set as current when note is selected
   useEffect(() => {
@@ -94,23 +124,46 @@ export default function NotesPage() {
     setupNoteSession();
   }, [selectedNoteId, setCurrentSessionId]);
 
-  // Change handlers
-  const onTitleChange = useCallback((val: string) => {
-    if (!selectedNoteId) return;
-    setDrafts(prev => {
-      const next = { 
-        ...(prev[selectedNoteId] ?? { title: 'Untitled', content: {} }), 
-        title: val 
-      };
-      const all = { ...prev, [selectedNoteId]: next };
-      // Fire debounced save for ONLY this note
-      saveSelected(selectedNoteId, next);
-      return all;
-    });
-  }, [selectedNoteId, saveSelected]);
+  // Title change handlers
+  const handleTitleChange = useCallback((val: string) => {
+    setLocalTitle(val);
+    // Don't save immediately - wait for blur or Enter
+  }, []);
 
-  const onContentChange = useCallback((nextContent: any) => {
+  const handleTitleBlur = useCallback(() => {
     if (!selectedNoteId) return;
+    
+    const trimmedTitle = localTitle.trim();
+    const finalTitle = trimmedTitle || 'Untitled';
+    
+    // Update drafts and save
+    setDrafts(prev => ({
+      ...prev,
+      [selectedNoteId]: {
+        ...prev[selectedNoteId],
+        title: finalTitle
+      }
+    }));
+    
+    // Save to Supabase - get current content from drafts
+    const currentContent = drafts[selectedNoteId]?.content || {};
+    saveSelected(selectedNoteId, { title: finalTitle, content: currentContent });
+    setIsTitleEditing(false);
+  }, [selectedNoteId, localTitle, saveSelected, drafts]);
+
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTitleBlur();
+    }
+  }, [handleTitleBlur]);
+
+  // Content change handlers
+  const handleContentChange = useCallback((nextContent: any) => {
+    if (!selectedNoteId) return;
+    
+    setLocalContent(nextContent.text || '');
+    
     setDrafts(prev => {
       const next = { 
         ...(prev[selectedNoteId] ?? { title: 'Untitled', content: {} }), 
@@ -169,9 +222,13 @@ export default function NotesPage() {
   };
 
   // Filter notes based on search
-  const filteredNotes = notes.filter(note => 
-    note.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredNotes = notes.filter(note => {
+    const title = (note.title || 'Untitled').toLowerCase();
+    const content = JSON.stringify(note.content).toLowerCase();
+    const query = searchQuery.toLowerCase();
+    
+    return title.includes(query) || content.includes(query);
+  });
 
   // Get current draft
   const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
@@ -201,7 +258,7 @@ export default function NotesPage() {
               type="text"
               placeholder="Search notes..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => debouncedSearch(e.target.value)}
               className="pl-10 pr-4 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 w-64"
             />
           </div>
@@ -269,14 +326,17 @@ export default function NotesPage() {
               <div className="p-6">
                 <input
                   type="text"
-                  value={currentDraft.title || 'Untitled'}
-                  onChange={(e) => onTitleChange(e.target.value)}
+                  value={localTitle}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  onBlur={handleTitleBlur}
+                  onKeyDown={handleTitleKeyDown}
                   className="w-full text-2xl font-medium bg-transparent border-none outline-none mb-6"
                   placeholder="Untitled"
+                  onFocus={() => setIsTitleEditing(true)}
                 />
                 <textarea
-                  value={currentDraft.content?.text || ''}
-                  onChange={(e) => onContentChange({ type: 'plain', text: e.target.value })}
+                  value={localContent}
+                  onChange={(e) => handleContentChange({ type: 'plain', text: e.target.value })}
                   className="w-full flex-1 p-4 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 resize-none"
                   placeholder="Start writing your note..."
                   style={{ minHeight: '400px' }}
@@ -315,15 +375,19 @@ export default function NotesPage() {
                   />
                 </div>
                 <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-white dark:bg-zinc-900">
-                  <ChatInput
-                    value={inputValue}
-                    onChange={setInputValue}
-                    onSend={handleSendMessage}
-                    sending={state.sending}
-                    disabled={!state.currentSession}
-                    onLinkChat={() => {}}
-                    onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
-                  />
+                  <div className="notesChatInputWrap flex items-center justify-center">
+                    <div className="max-w-[560px] w-full">
+                      <ChatInput
+                        value={inputValue}
+                        onChange={setInputValue}
+                        onSend={handleSendMessage}
+                        sending={state.sending}
+                        disabled={!state.currentSession}
+                        onLinkChat={() => {}}
+                        onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </>

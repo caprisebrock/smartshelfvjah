@@ -449,9 +449,7 @@ export default function NotesPage() {
           {selectedNoteId && currentDraft ? (
             <>
               <div className="chat-header">
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Chat for: <span className="font-medium">{currentDraft.title || 'Untitled'}</span>
-                </div>
+                Chat for: {currentDraft?.title ?? 'Untitled'}
               </div>
               
               <div className="chat-scroll">

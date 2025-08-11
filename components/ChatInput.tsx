@@ -43,7 +43,16 @@ export default function ChatInput({
       className,
     ].filter(Boolean).join(" ")}>
       <div className="relative">
-        <input ref={fileInput} type="file" className="hidden" multiple onChange={onFiles} />
+        <input 
+          ref={fileInput} 
+          type="file" 
+          multiple 
+          accept="image/*,application/pdf,text/plain,application/zip,application/json"
+          // On mobile Safari/Chrome this can prompt camera; desktop will ignore.
+          capture={/iPhone|iPad|Android/i.test(navigator.userAgent) ? "environment" : undefined}
+          onChange={onFiles} 
+          className="hidden" 
+        />
         <div className="relative flex items-end gap-2">
           {/* pill input */}
           <div className="flex-1 relative">
@@ -54,7 +63,7 @@ export default function ChatInput({
                 <div className="flex items-center gap-1 pl-3">
                   <button
                     type="button"
-                    aria-label="Attach"
+                    aria-label="Attach files or take photo"
                     onClick={pickFiles}
                     className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                   >

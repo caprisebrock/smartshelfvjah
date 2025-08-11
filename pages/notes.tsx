@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 import { useUser } from '../lib/useUser';
 import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../lib/notes';
 import { useChat } from '../lib/ChatContext';
+import { useToast } from '../lib/ToastContext';
+import { supabase } from '../lib/supabaseClient';
 import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
 import { Search, Plus, Save, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import MessageList from '../components/MessageList';
@@ -23,12 +25,13 @@ type Draft = { title: string; content: any };
 export default function NotesPage() {
   const { user } = useUser();
   const router = useRouter();
-  const { state, sendMessage, setCurrentSessionId } = useChat();
+  const { state, sendMessage, setCurrentSessionId, createNewSession } = useChat();
+  const { addToast } = useToast();
   
   // Core state
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [drafts, setDrafts] = useState<Record<string, { title: string; content: any }>>({});
   const [saving, setSaving] = useState(false);
   
   // Local editing state
@@ -105,8 +108,20 @@ export default function NotesPage() {
       }
       
       try {
-        const session = await getOrCreateNoteSession(selectedNoteId);
-        if (!cancelled) {
+        // Try to get existing session first
+        let session = await getOrCreateNoteSession(selectedNoteId);
+        
+        // If no session exists, create one using ChatContext
+        if (!session) {
+          await createNewSession('note', undefined, undefined, selectedNoteId);
+          // Get the session ID from localStorage after creation
+          const newSessionId = localStorage.getItem('currentSessionId');
+          if (newSessionId) {
+            session = { id: newSessionId, title: 'Note Chat' };
+          }
+        }
+        
+        if (!cancelled && session) {
           setSessionId(session.id);
           // Set current session in ChatContext
           await setCurrentSessionId(session.id);
@@ -121,7 +136,38 @@ export default function NotesPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedNoteId, setCurrentSessionId]);
+  }, [selectedNoteId, setCurrentSessionId, createNewSession]);
+
+  // Handle linking session to resource
+  const handleLinkSession = async (linkType: 'learning' | 'habit', linkId: string, linkTitle: string) => {
+    if (!sessionId) return;
+    
+    try {
+      // Update the session with link information
+      const { error } = await supabase
+        .from('sessions')
+        .update({
+          link_type: linkType === 'learning' ? 'learning_resource' : 'habit',
+          link_id: linkId,
+          link_title: linkTitle,
+          ...(linkType === 'learning' ? { linked_learning_resource: linkId } : {}),
+          ...(linkType === 'habit' ? { linked_habit: linkId } : {})
+        })
+        .eq('id', sessionId);
+
+      if (error) {
+        throw error;
+      }
+
+      addToast(`Linked to ${linkType}: ${linkTitle}`, 'success');
+      
+      // Refresh the session to get updated link information
+      await setCurrentSessionId(sessionId);
+    } catch (error) {
+      console.error('Failed to link session to resource:', error);
+      addToast('Failed to link resource', 'error');
+    }
+  };
 
   // Filter notes based on search query
   const filteredNotes = useMemo(() => {
@@ -147,6 +193,11 @@ export default function NotesPage() {
     const realMessages = state.messages.filter(msg => msg.session_id === sessionId);
     return [...realMessages, ...optimisticMessages.filter(msg => msg.session_id === sessionId)];
   }, [state.messages, optimisticMessages, sessionId]);
+
+  // Get current session for linking display
+  const currentSession = useMemo(() => {
+    return state.sessions.find(s => s.id === sessionId) || state.currentSession;
+  }, [state.sessions, state.currentSession, sessionId]);
 
   // Handle note selection
   const selectNote = async (noteId: string) => {
@@ -288,7 +339,7 @@ export default function NotesPage() {
       await selectNote(newNote.id);
     } catch (error) {
       console.error('Failed to create note:', error);
-      // addToast('Failed to create note', 'error'); // Assuming addToast is available
+      addToast('Failed to create note', 'error');
     }
   };
 
@@ -311,10 +362,10 @@ export default function NotesPage() {
         setLocalContent('');
       }
       
-      // addToast('Note deleted successfully', 'success'); // Assuming addToast is available
+      addToast('Note deleted successfully', 'success');
     } catch (error) {
       console.error('Failed to delete note:', error);
-      // addToast('Failed to delete note', 'error'); // Assuming addToast is available
+      addToast('Failed to delete note', 'error');
     }
   };
 
@@ -461,9 +512,9 @@ export default function NotesPage() {
             <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
               <div className="text-sm text-neutral-600">
                 Chat for: {currentDraft?.title ?? 'Untitled'}
-                {state.currentSession?.link_title && (
+                {currentSession?.link_title && (
                   <span className="ml-2 text-xs text-neutral-500">
-                    Linked: {state.currentSession.link_title}
+                    Linked: {currentSession.link_title}
                   </span>
                 )}
               </div>
@@ -489,6 +540,8 @@ export default function NotesPage() {
                   disabled={!sessionId || !inputValue.trim()}
                   onLinkChat={() => {}}
                   onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
+                  onLinkResource={handleLinkSession}
+                  linkDisabled={!selectedNoteId || !sessionId}
                   className="w-full"
                   noteId={selectedNoteId || undefined}
                   sessionId={sessionId || undefined}

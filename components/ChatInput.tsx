@@ -9,20 +9,23 @@ export type ChatInputProps = {
   disabled?: boolean;
   onLinkChat?: () => void;
   onAttach?: (files: File[]) => void;
+  onLinkResource?: (linkType: 'learning' | 'habit', linkId: string, linkTitle: string) => void;
   placeholder?: string;
   className?: string;
   noteId?: string;
   sessionId?: string;
+  linkDisabled?: boolean;
 };
 
 export default function ChatInput({
   value, onChange, onSend,
   sending = false, disabled = false,
-  onLinkChat, onAttach,
+  onLinkChat, onAttach, onLinkResource,
   placeholder = 'Type your message...',
   className,
   noteId,
-  sessionId
+  sessionId,
+  linkDisabled = false
 }: ChatInputProps) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -43,10 +46,17 @@ export default function ChatInput({
   };
 
   const handleLinkResource = () => {
-    setLinkOpen(true);
-    // TODO: Open LinkResourcePicker modal here
-    // This will be implemented when we have the modal component
-    console.log('Opening link resource picker for note:', noteId, 'session:', sessionId);
+    if (linkDisabled || !onLinkResource) return;
+    
+    // For now, we'll use a simple prompt to demonstrate the linking
+    // In a real implementation, this would open a resource picker modal
+    const linkType = prompt('Enter link type (learning or habit):') as 'learning' | 'habit';
+    const linkId = prompt('Enter resource ID:');
+    const linkTitle = prompt('Enter resource title:');
+    
+    if (linkType && linkId && linkTitle && (linkType === 'learning' || linkType === 'habit')) {
+      onLinkResource(linkType, linkId, linkTitle);
+    }
   };
 
   return (
@@ -85,7 +95,12 @@ export default function ChatInput({
                     type="button"
                     aria-label="Link resource"
                     onClick={handleLinkResource}
-                    className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                    disabled={linkDisabled}
+                    className={`p-2 rounded-full transition ${
+                      linkDisabled 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
                   >
                     <Link2 className="h-5 w-5 text-zinc-500" />
                   </button>

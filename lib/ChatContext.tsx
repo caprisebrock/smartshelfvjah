@@ -51,6 +51,7 @@ const ChatContext = createContext<{
   createNewSession: (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string, noteId?: string) => Promise<void>;
   ensureNoteSession: (noteId: string) => Promise<string | null>;
   generateSessionTitle: (sessionId: string) => Promise<void>;
+  setCurrentSessionId: (sessionId: string) => Promise<void>;
 } | null>(null);
 
 const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
@@ -503,6 +504,24 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Set current session by ID and load its messages
+  const setCurrentSessionId = async (sessionId: string) => {
+    if (!user?.id) return;
+
+    try {
+      // Find the session in the current sessions list
+      const session = state.sessions.find(s => s.id === sessionId);
+      if (session) {
+        dispatch({ type: 'SET_CURRENT_SESSION', payload: session });
+      }
+
+      // Load messages for this session using existing logic
+      await loadSession(sessionId);
+    } catch (error) {
+      console.error('Error setting current session:', error);
+    }
+  };
+
   return (
     <ChatContext.Provider value={{
       state,
@@ -510,7 +529,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       loadSession,
       createNewSession,
       ensureNoteSession,
-      generateSessionTitle
+      generateSessionTitle,
+      setCurrentSessionId
     }}>
       {children}
     </ChatContext.Provider>

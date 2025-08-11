@@ -11,6 +11,7 @@ import { Search, Plus, Save, Check, Trash2, ChevronLeft, ChevronRight } from 'lu
 import MessageList from '../components/MessageList';
 import ChatInput from '../components/ChatInput';
 import { clsx } from 'clsx';
+import styles from '../styles/notes.module.css';
 
 // Lightweight type for note summaries
 type NoteSummary = { 
@@ -161,12 +162,69 @@ export default function NotesPage() {
 
       addToast(`Linked to ${linkType}: ${linkTitle}`, 'success');
       
+      // Enqueue AI context breadcrumb for linked resource
+      enqueue(async () => {
+        try {
+          // Fetch minimal metadata for the resource
+          let resource: any;
+          if (linkType === 'learning') {
+            const { data } = await supabase
+              .from('learning_resources')
+              .select('id, title, type, author, total_minutes, minutes_completed')
+              .eq('id', linkId)
+              .single();
+            resource = data;
+          } else if (linkType === 'habit') {
+            const { data } = await supabase
+              .from('habits')
+              .select('id, title, description, frequency')
+              .eq('id', linkId)
+              .single();
+            resource = data;
+          }
+
+          if (resource) {
+            // Create a system message for AI context
+            const resourceType = linkType === 'learning' ? (resource.type || 'learning resource') : 'habit';
+            const systemMessage = {
+              id: `system-${Date.now()}`,
+              session_id: sessionId,
+              sender: 'assistant' as const,
+              content: `Linked resource: "${resource.title}" (${resourceType}). If the user asks, summarize or reference it.`,
+              created_at: new Date().toISOString(),
+              token_count: 0
+            };
+
+            // Insert the system message into Supabase
+            await supabase
+              .from('session_messages')
+              .insert({
+                session_id: sessionId,
+                sender: 'assistant',
+                content: systemMessage.content,
+                token_count: 0
+              });
+
+            // Add to local state for immediate display
+            setOptimisticMessages(prev => [...prev, systemMessage]);
+          }
+        } catch (error) {
+          console.error('Failed to create AI context breadcrumb:', error);
+        }
+      });
+      
       // Refresh the session to get updated link information
       await setCurrentSessionId(sessionId);
     } catch (error) {
       console.error('Failed to link session to resource:', error);
       addToast('Failed to link resource', 'error');
     }
+  };
+
+  // Simple enqueue function for async side effects
+  const enqueue = (task: () => Promise<void>) => {
+    // Execute immediately for now, could be enhanced with a proper queue
+    task();
   };
 
   // Filter notes based on search query
@@ -369,9 +427,6 @@ export default function NotesPage() {
     }
   };
 
-  // Grid template based on sidebar state
-  const gridTemplate = sidebarOpen ? '280px 1fr 420px' : '0 1fr 1fr';
-
   return (
     <>
       <Head>
@@ -401,15 +456,13 @@ export default function NotesPage() {
         </header>
 
         <div 
-          className="grid min-h-[calc(100vh-64px)] pt-[64px]"
-          style={{ gridTemplateColumns: gridTemplate }}
+          className={clsx(styles.notesGrid, sidebarOpen ? styles.open : styles.closed)}
         >
-          <aside
-            className={clsx(
-              "overflow-hidden border-r border-neutral-200 transition-all duration-200 ease-out",
-              sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
-            )}
-          >
+          <aside className={clsx(
+            styles.notesList,
+            "transition-all duration-200 ease-out",
+            sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
+          )}>
             {/* Collapse button */}
             <div className="flex justify-end p-2 border-b border-gray-100">
               <button
@@ -471,10 +524,10 @@ export default function NotesPage() {
             </div>
           </aside>
 
-          <main className="h-full overflow-hidden">
+          <main className={styles.notesEditor}>
             {selectedNoteId && currentDraft ? (
               <div className="h-full flex flex-col">
-                <div className="p-6">
+                <div className="h-full">
                   <input
                     type="text"
                     value={localTitle}
@@ -507,9 +560,9 @@ export default function NotesPage() {
           </main>
 
           {/* RIGHT: chat pane */}
-          <section className="h-full flex flex-col min-h-0 border-l border-neutral-200">
+          <section className={styles.notesChat}>
             {/* Chat header */}
-            <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
+            <div className={styles.chatHeader}>
               <div className="text-sm text-neutral-600">
                 Chat for: {currentDraft?.title ?? 'Untitled'}
                 {currentSession?.link_title && (
@@ -523,6 +576,7 @@ export default function NotesPage() {
             {/* Scrollable messages */}
             <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
               <MessageList 
+                key={currentSession?.id || 'no-session'}
                 messages={currentMessages} 
                 typing={typing && state.sending}
                 bottomRef={bottomRef}

@@ -1,0 +1,38 @@
+/* Notes page grid layout */
+.notesGrid {
+  display: grid;
+  height: calc(100vh - 56px);
+}
+
+.notesGrid.open {
+  grid-template-columns: 280px 1fr 420px;
+}
+
+.notesGrid.closed {
+  grid-template-columns: 0 1fr 1fr;
+}
+
+/* Left notes list */
+.notesList {
+  overflow-y: auto;
+  border-right: 1px solid #e5e7eb;
+}
+
+/* Editor pane */
+.notesEditor {
+  overflow: auto;
+  padding: 16px 20px;
+}
+
+/* Chat pane */
+.notesChat {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  border-left: 1px solid #e5e7eb;
+}
+
+/* Chat header */
+.chatHeader {
+  padding: 10px 12px;
+  font-weight: 500;
+} 

@@ -328,20 +328,20 @@ export default function NotesPage() {
       </Head>
 
       <div className="notes-page">
-        <header className="sticky top-0 z-20 bg-gradient-to-b from-[#0b1735] to-[#0b1735] text-white px-4 py-3 flex items-center justify-between">
+        <header className="sticky top-0 z-20 bg-gradient-to-b from-[#0b1735] to-[#0b1735] text-white px-4 py-4 flex items-center justify-between shadow-lg">
           <div className="flex items-center gap-3">
-            <a href="/" className="text-sm opacity-80 hover:opacity-100">← Back to Dashboard</a>
-            <div className="font-semibold">Notes</div>
+            <a href="/" className="text-base opacity-80 hover:opacity-100 transition-opacity">← Back to Dashboard</a>
+            <div className="font-semibold text-lg">Notes</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <input 
-              className="rounded-md px-3 py-1.5 text-sm text-black w-[280px]" 
+              className="rounded-md px-3 py-2 text-sm text-black w-[280px]" 
               placeholder="Search notes..." 
               value={searchQuery}
               onChange={(e) => debouncedSearch(e.target.value)}
             />
             <button 
-              className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5" 
+              className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 transition-colors" 
               onClick={handleNewNote}
             >
               + New Note
@@ -350,7 +350,7 @@ export default function NotesPage() {
         </header>
 
         <div 
-          className="grid min-h-[calc(100vh-56px)] pt-[56px]"
+          className="grid min-h-[calc(100vh-64px)] pt-[64px]"
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <aside

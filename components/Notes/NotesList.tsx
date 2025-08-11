@@ -30,7 +30,7 @@ export default function NotesList({
 
   const onNew = async () => {
     try {
-      const n = await createNote({});
+      const n = await createNote(user.id);
       setNotes(prev => [n, ...prev]);
       onSelect(n.id);
     } catch (e: any) {

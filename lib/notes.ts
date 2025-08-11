@@ -20,28 +20,6 @@ export async function getNotes(userId: string): Promise<Note[]> {
   return (data || []) as Note[];
 }
 
-export async function createNote(params: { title?: string; linked_resource_id?: string | null }) {
-  const { data: auth } = await supabase.auth.getSession();
-  const uid = auth?.session?.user?.id;
-  if (!uid) throw new Error('Not authenticated');
-
-  const payload = {
-    user_id: uid,
-    title: params.title ?? 'Untitled',
-    content: {},
-    linked_resource_id: params.linked_resource_id ?? null,
-  } as const;
-
-  const { data, error } = await supabase
-    .from('notes')
-    .insert(payload)
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data as Note;
-}
-
 export async function updateNote(params: { id: string; title?: string; content?: any; linked_resource_id?: string | null }) {
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
   if (typeof params.title !== 'undefined') updates.title = params.title;
@@ -96,6 +74,37 @@ export function flushNoteUpdates(noteId: string): void {
     clearTimeout(debounceTimers[noteId]);
     delete debounceTimers[noteId];
   }
+}
+
+// Lightweight helpers for fast note operations
+export async function createNote(userId: string) {
+  const { data, error } = await supabase.from('notes')
+    .insert([{ user_id: userId, title: 'Untitled', content: {} }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getNoteById(id: string) {
+  const { data, error } = await supabase.from('notes').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateNoteFast(id: string, patch: { title?: string; content?: any }) {
+  const { data, error } = await supabase.from('notes')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteNoteById(id: string) {
+  const { error } = await supabase.from('notes').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // Get or create exactly one session per note

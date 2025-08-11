@@ -12,6 +12,70 @@
   grid-template-columns: 0 1fr 1fr;
 }
 
+/* Header styling */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 12px;
+  position: relative;
+  background: linear-gradient(to bottom, #0b1735, #0b1735);
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.collapseBtn {
+  margin-right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collapseBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: #d1d5db;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.back {
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.8);
+  transition: opacity 0.2s ease;
+}
+
+.back:hover {
+  opacity: 1;
+}
+
+.sep {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.notes {
+  color: white;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Left notes list */
 .notesList {
   overflow-y: auto;

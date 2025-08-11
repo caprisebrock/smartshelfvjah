@@ -434,12 +434,20 @@ export default function NotesPage() {
       </Head>
 
       <div className="notes-page">
-        <header className="sticky top-0 z-20 bg-gradient-to-b from-[#0b1735] to-[#0b1735] text-white px-4 py-4 flex items-center justify-between shadow-lg">
-          <div className="flex items-center gap-3">
-            <a href="/" className="text-base opacity-80 hover:opacity-100 transition-opacity">← Back to Dashboard</a>
-            <div className="font-semibold text-lg">Notes</div>
+        <header className={styles.header}>
+          <button
+            className={styles.collapseBtn}
+            aria-label={sidebarOpen ? 'Collapse notes list' : 'Expand notes list'}
+            onClick={() => setSidebarOpen(v => !v)}
+          >
+            {sidebarOpen ? '◀' : '▶'}
+          </button>
+          <div className={styles.headerTitle}>
+            <a href="/" className={styles.back}>Back to Dashboard</a>
+            <span className={styles.sep}>•</span>
+            <span className={styles.notes}>Notes</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className={styles.headerRight}>
             <input 
               className="rounded-md px-3 py-2 text-sm text-black w-[280px]" 
               placeholder="Search notes..." 
@@ -463,17 +471,6 @@ export default function NotesPage() {
             "transition-all duration-200 ease-out",
             sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
           )}>
-            {/* Collapse button */}
-            <div className="flex justify-end p-2 border-b border-gray-100">
-              <button
-                type="button"
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
-                onClick={() => setSidebarOpen(false)}
-                aria-label="Collapse notes sidebar"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
             
             {/* Notes List */}
             <div className="p-4">
@@ -604,19 +601,6 @@ export default function NotesPage() {
             </div>
           </section>
         </div>
-
-        {/* Floating expand button when sidebar is collapsed */}
-        {!sidebarOpen && (
-          <button
-            type="button"
-            className="fixed left-4 top-20 z-30 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-lg transition-all hover:shadow-xl"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Expand notes sidebar"
-            title="Show notes list"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-600" />
-          </button>
-        )}
 
         {/* Delete confirmation modal */}
         {showDeleteConfirm && (

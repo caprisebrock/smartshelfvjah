@@ -5,10 +5,9 @@ import { useUser } from '../lib/useUser';
 import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../lib/notes';
 import { useChat } from '../lib/ChatContext';
 import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
+import { Search, Plus, Save, Check, Trash2 } from 'lucide-react';
 import MessageList from '../components/MessageList';
 import ChatInput from '../components/ChatInput';
-import { ArrowLeft, Plus, Search, MessageCircle, X, ChevronLeft, Trash2 } from 'lucide-react';
-import Link from 'next/link';
 
 // Lightweight type for note summaries
 type NoteSummary = { 
@@ -54,6 +53,7 @@ export default function NotesPage() {
   const [typing, setTyping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Refs
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -307,26 +307,24 @@ export default function NotesPage() {
   const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <>
       <Head>
         <title>Notes - SmartShelf</title>
       </Head>
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="flex items-center gap-4">
-          <Link 
-            href="/"
-            className="inline-flex items-center gap-2 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="font-medium">Back to Dashboard</span>
-          </Link>
-          <h1 className="text-xl font-semibold">Notes</h1>
-        </div>
-        <div className="flex items-center gap-3">
+      <div className="notes-header">
+        <button
+          onClick={() => router.back()}
+          className="back-link"
+        >
+          Back to Dashboard
+        </button>
+        <h1>Notes</h1>
+        <div className="spacer" />
+        <div className="right-controls">
+          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
               type="text"
               placeholder="Search notes..."
@@ -335,65 +333,82 @@ export default function NotesPage() {
               className="pl-10 pr-4 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 w-64"
             />
           </div>
+          
+          {/* New Note Button */}
           <button
             onClick={handleNewNote}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition-colors"
           >
-            <Plus className="w-4 h-4 mr-2 inline" />
+            <Plus className="w-4 h-4" />
             New Note
           </button>
         </div>
       </div>
 
-      {/* 3-Column Layout */}
-      <div className="grid grid-cols-[280px_1fr_360px] gap-4 h-[calc(100vh-64px)] px-4">
-        {/* Left: Notes List */}
-        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-y-auto">
-          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
-            <h2 className="font-medium mb-3">Notes</h2>
-            <div className="space-y-2">
-              {filteredNotes.map(note => {
-                // Get preview from drafts if available, otherwise from note data
-                const draft = drafts[note.id];
-                const previewTitle = draft?.title ?? note.title;
-                const previewContent = draft?.content?.text ?? note.content?.text;
-                
-                return (
-                  <div
-                    key={note.id}
-                    className={`p-3 rounded-md cursor-pointer transition-colors group relative ${
-                      selectedNoteId === note.id 
-                        ? 'bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800' 
-                        : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <div onClick={() => selectNote(note.id)}>
+      <div className={`notes-grid ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <aside className="notes-list-pane">
+          <div className="notes-list-header">
+            <span>Notes</span>
+            <button
+              type="button"
+              className="collapse-btn"
+              onClick={() => setSidebarCollapsed(true)}
+              aria-label="Collapse notes sidebar"
+            >
+              ⟨
+            </button>
+          </div>
+          
+          {/* Notes List */}
+          <div className="p-4">
+            {filteredNotes.length === 0 ? (
+              <div className="text-center text-zinc-500 py-8">
+                <div className="text-4xl mb-4">📝</div>
+                <div className="text-lg font-medium mb-2">No notes yet</div>
+                <div className="text-sm">Create your first note to get started</div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredNotes.map(note => {
+                  const draft = drafts[note.id];
+                  const previewTitle = draft?.title ?? note.title;
+                  const previewContent = draft?.content?.text ?? note.content?.text;
+                  
+                  return (
+                    <div
+                      key={note.id}
+                      onClick={() => selectNote(note.id)}
+                      className={`group relative p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
+                        selectedNoteId === note.id
+                          ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20'
+                          : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                      }`}
+                    >
                       <div className="font-medium truncate">{previewTitle || 'Untitled'}</div>
                       <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">
                         {previewContent ? previewContent.substring(0, 50) + '...' : 'No content'}
                       </div>
+                      
+                      {/* Delete button - hover to reveal */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDeleteConfirm(note.id);
+                        }}
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500 hover:text-red-700"
+                        title="Delete note"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    
-                    {/* Delete button - hover to reveal */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDeleteConfirm(note.id);
-                      }}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500 hover:text-red-700"
-                      title="Delete note"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        </aside>
 
-        {/* Center: Note Editor */}
-        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-y-auto">
+        <main className="notes-editor-pane">
           {selectedNoteId && currentDraft ? (
             <div className="h-full flex flex-col">
               <div className="p-6">
@@ -426,43 +441,35 @@ export default function NotesPage() {
               </div>
             </div>
           )}
-        </div>
+        </main>
 
-        {/* Right: Chat Panel */}
-        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 flex flex-col">
+        <section className="notes-chat-pane">
           {selectedNoteId && currentDraft ? (
             <>
-              {/* Chat Context Line */}
-              <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800">
+              <div className="chat-header">
                 <div className="text-sm text-zinc-600 dark:text-zinc-300">
                   Chat for: <span className="font-medium">{currentDraft.title || 'Untitled'}</span>
                 </div>
               </div>
               
-              {/* Chat Area */}
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 overflow-y-auto">
-                  <MessageList 
-                    messages={currentMessages} 
-                    typing={typing && state.sending}
-                    bottomRef={bottomRef}
-                  />
-                </div>
-                <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-white dark:bg-zinc-900">
-                  <div className="notesChatInputWrap flex items-center justify-center">
-                    <div className="notesChatInputInner w-full max-w-[560px] flex gap-2 items-center">
-                      <ChatInput
-                        value={inputValue}
-                        onChange={setInputValue}
-                        onSend={handleSendMessage}
-                        sending={state.sending}
-                        disabled={!sessionId || !inputValue.trim()}
-                        onLinkChat={() => {}}
-                        onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
-                      />
-                    </div>
-                  </div>
-                </div>
+              <div className="chat-scroll">
+                <MessageList 
+                  messages={currentMessages} 
+                  typing={typing && state.sending}
+                  bottomRef={bottomRef}
+                />
+              </div>
+              
+              <div className="chat-dock">
+                <ChatInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSend={handleSendMessage}
+                  sending={state.sending}
+                  disabled={!sessionId || !inputValue.trim()}
+                  onLinkChat={() => {}}
+                  onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
+                />
               </div>
             </>
           ) : (
@@ -474,34 +481,34 @@ export default function NotesPage() {
               </div>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
-      {/* Open Chat Button - positioned in normal flow, not floating */}
-      {selectedNoteId && (
-        <div className="fixed bottom-6 right-6">
-          <button
-            onClick={openChatForSelected}
-            className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-all hover:scale-105"
-          >
-            <MessageCircle className="w-5 h-5 mr-2 inline" />
-            Open Chat
-          </button>
-        </div>
+      {/* Floating expand button when sidebar is collapsed */}
+      {sidebarCollapsed && (
+        <button
+          type="button"
+          className="expand-btn"
+          onClick={() => setSidebarCollapsed(false)}
+          aria-label="Expand notes sidebar"
+          title="Show notes list"
+        >
+          ☰
+        </button>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-sm mx-4">
-            <div className="text-lg font-medium mb-4">Delete Note</div>
-            <div className="text-zinc-600 dark:text-zinc-400 mb-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium mb-4">Delete Note</h3>
+            <p className="text-zinc-600 dark:text-zinc-400 mb-6">
               Are you sure you want to delete this note? This action cannot be undone.
-            </div>
+            </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 Cancel
               </button>
@@ -515,6 +522,6 @@ export default function NotesPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 } 

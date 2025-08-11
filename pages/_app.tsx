@@ -1,6 +1,7 @@
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
 import '../styles/globals.css';
+import '../styles/notes.css';
 import { HabitsProvider } from '../lib/HabitsContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { ToastProvider } from '../lib/ToastContext';

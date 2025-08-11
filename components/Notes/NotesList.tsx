@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { createNote, deleteNote, getNotes, Note } from '../../lib/notes';
+import { quickCreateNote, deleteNote, getNotes, Note } from '../../lib/notes';
 import { useUser } from '../../lib/useUser';
 
 export default function NotesList({
@@ -30,7 +30,7 @@ export default function NotesList({
 
   const onNew = async () => {
     try {
-      const n = await createNote(user.id);
+      const n = await quickCreateNote(user.id);
       setNotes(prev => [n, ...prev]);
       onSelect(n.id);
     } catch (e: any) {

@@ -20,6 +20,28 @@ export async function getNotes(userId: string): Promise<Note[]> {
   return (data || []) as Note[];
 }
 
+export async function createNote(params: { title?: string; linked_resource_id?: string | null }) {
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth?.session?.user?.id;
+  if (!uid) throw new Error('Not authenticated');
+
+  const payload = {
+    user_id: uid,
+    title: params.title ?? 'Untitled',
+    content: {},
+    linked_resource_id: params.linked_resource_id ?? null,
+  } as const;
+
+  const { data, error } = await supabase
+    .from('notes')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data as Note;
+}
+
 export async function updateNote(params: { id: string; title?: string; content?: any; linked_resource_id?: string | null }) {
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
   if (typeof params.title !== 'undefined') updates.title = params.title;
@@ -34,6 +56,16 @@ export async function updateNote(params: { id: string; title?: string; content?:
     .single();
   if (error) throw new Error(error.message);
   return data as Note;
+}
+
+// Quick create note with just userId (for internal use)
+export async function quickCreateNote(userId: string) {
+  const { data, error } = await supabase.from('notes')
+    .insert([{ user_id: userId, title: 'Untitled', content: {} }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function deleteNote(id: string) {
@@ -77,15 +109,6 @@ export function flushNoteUpdates(noteId: string): void {
 }
 
 // Lightweight helpers for fast note operations
-export async function createNote(userId: string) {
-  const { data, error } = await supabase.from('notes')
-    .insert([{ user_id: userId, title: 'Untitled', content: {} }])
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
 export async function getNoteById(id: string) {
   const { data, error } = await supabase.from('notes').select('*').eq('id', id).single();
   if (error) throw error;

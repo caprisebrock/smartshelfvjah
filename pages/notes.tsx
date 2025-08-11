@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useUser } from '../lib/useUser';
-import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById } from '../lib/notes';
+import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote } from '../lib/notes';
 import { useChat } from '../lib/ChatContext';
 import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
 import MessageList from '../components/MessageList';
@@ -137,7 +137,7 @@ export default function NotesPage() {
   const handleNewNote = async () => {
     if (!user?.id) return;
     try {
-      const newNote = await createNote(user.id);
+      const newNote = await quickCreateNote(user.id);
       setNotes(prev => [newNote, ...prev]);
       await selectNote(newNote.id);
     } catch (error) {

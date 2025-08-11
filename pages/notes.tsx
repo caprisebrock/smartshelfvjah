@@ -5,9 +5,10 @@ import { useUser } from '../lib/useUser';
 import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../lib/notes';
 import { useChat } from '../lib/ChatContext';
 import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
-import { Search, Plus, Save, Check, Trash2 } from 'lucide-react';
+import { Search, Plus, Save, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import MessageList from '../components/MessageList';
 import ChatInput from '../components/ChatInput';
+import { clsx } from 'clsx';
 
 // Lightweight type for note summaries
 type NoteSummary = { 
@@ -53,7 +54,7 @@ export default function NotesPage() {
   const [typing, setTyping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [notesCollapsed, setNotesCollapsed] = useState(false);
 
   // Refs
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -307,218 +308,228 @@ export default function NotesPage() {
   const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
 
   return (
-    <div className="notes-page">
+    <>
       <Head>
         <title>Notes - SmartShelf</title>
       </Head>
 
-      <header className="notes-page__header">
-        <div className="notes-header">
-          <button
-            onClick={() => router.back()}
-            className="back-link"
-          >
-            Back to Dashboard
-          </button>
-          <h1>Notes</h1>
-          <div className="spacer" />
-          <div className="right-controls">
-            {/* Search */}
+      <div className="notes-page">
+        <header className="notes-page__header">
+          <div className="flex items-center gap-4">
+            <a href="/" className="text-sm text-gray-600 hover:text-gray-800">
+              ← Back to Dashboard
+            </a>
+            <h1 className="text-2xl font-bold">Notes</h1>
+          </div>
+          
+          <div className="flex items-center gap-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search notes..."
                 value={searchQuery}
                 onChange={(e) => debouncedSearch(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 w-64"
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             
-            {/* New Note Button */}
             <button
               onClick={handleNewNote}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition-colors"
+              className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
             >
               <Plus className="w-4 h-4" />
               New Note
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className={`grid grid-cols-[260px_1fr_380px] gap-0 min-h-[calc(100vh-56px)] ${sidebarCollapsed ? 'grid-cols-[0_1fr_460px]' : ''}`}>
-        <aside className="h-full border-r border-neutral-200">
-          <div className="notes-list-header">
-            <span>Notes</span>
-            <button
-              type="button"
-              className="collapse-btn"
-              onClick={() => setSidebarCollapsed(true)}
-              aria-label="Collapse notes sidebar"
-            >
-              ⟨
-            </button>
-          </div>
-          
-          {/* Notes List */}
-          <div className="p-4">
-            {filteredNotes.length === 0 ? (
-              <div className="text-center text-zinc-500 py-8">
-                <div className="text-4xl mb-4">📝</div>
-                <div className="text-lg font-medium mb-2">No notes yet</div>
-                <div className="text-sm">Create your first note to get started</div>
+        <div className={clsx(
+          "grid min-h-[calc(100vh-56px)]",
+          notesCollapsed
+            ? "grid-cols-[0_1fr_380px]"
+            : "grid-cols-[260px_1fr_380px]"
+        )}>
+          <aside
+            className={clsx(
+              "overflow-hidden border-r border-neutral-200 transition-[width] duration-200 ease-out",
+              notesCollapsed ? "w-0 opacity-0 pointer-events-none" : "w-[260px] opacity-100"
+            )}
+          >
+            <div className="notes-list-header">
+              <span>Notes</span>
+              <button
+                type="button"
+                className="collapse-btn"
+                onClick={() => setNotesCollapsed(true)}
+                aria-label="Collapse notes sidebar"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Notes List */}
+            <div className="p-4">
+              {filteredNotes.length === 0 ? (
+                <div className="text-center text-zinc-500 py-8">
+                  <div className="text-4xl mb-4">📝</div>
+                  <div className="text-lg font-medium mb-2">No notes yet</div>
+                  <div className="text-sm">Create your first note to get started</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredNotes.map(note => {
+                    const draft = drafts[note.id];
+                    const previewTitle = draft?.title ?? note.title;
+                    const previewContent = draft?.content?.text ?? note.content?.text;
+                    
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() => selectNote(note.id)}
+                        className={`group relative p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
+                          selectedNoteId === note.id
+                            ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20'
+                            : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                        }`}
+                      >
+                        <div className="font-medium truncate">{previewTitle || 'Untitled'}</div>
+                        <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">
+                          {previewContent ? previewContent.substring(0, 50) + '...' : 'No content'}
+                        </div>
+                        
+                        {/* Delete button - hover to reveal */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowDeleteConfirm(note.id);
+                          }}
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500 hover:text-red-700"
+                          title="Delete note"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+
+          <main className="h-full overflow-hidden">
+            {selectedNoteId && currentDraft ? (
+              <div className="h-full flex flex-col">
+                <div className="p-6">
+                  <input
+                    type="text"
+                    value={localTitle}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    onBlur={handleTitleBlur}
+                    onKeyDown={handleTitleKeyDown}
+                    className="w-full text-2xl font-medium bg-transparent border-none outline-none mb-6"
+                    placeholder="Untitled"
+                    onFocus={() => setIsTitleEditing(true)}
+                  />
+                  <textarea
+                    value={localContent}
+                    onChange={(e) => handleContentChange({ type: 'plain', text: e.target.value })}
+                    className="w-full flex-1 p-4 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 resize-none"
+                    placeholder="Start writing your note..."
+                    style={{ minHeight: '400px' }}
+                  />
+                  {saving && <div className="text-sm text-zinc-500 mt-3">Saving...</div>}
+                </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                {filteredNotes.map(note => {
-                  const draft = drafts[note.id];
-                  const previewTitle = draft?.title ?? note.title;
-                  const previewContent = draft?.content?.text ?? note.content?.text;
-                  
-                  return (
-                    <div
-                      key={note.id}
-                      onClick={() => selectNote(note.id)}
-                      className={`group relative p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
-                        selectedNoteId === note.id
-                          ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20'
-                          : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
-                      }`}
-                    >
-                      <div className="font-medium truncate">{previewTitle || 'Untitled'}</div>
-                      <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">
-                        {previewContent ? previewContent.substring(0, 50) + '...' : 'No content'}
-                      </div>
-                      
-                      {/* Delete button - hover to reveal */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowDeleteConfirm(note.id);
-                        }}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500 hover:text-red-700"
-                        title="Delete note"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  );
-                })}
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center text-zinc-500">
+                  <div className="text-4xl mb-4">📝</div>
+                  <div className="text-lg font-medium mb-2">Select a note to start</div>
+                  <div className="text-sm">Choose a note from the left or create a new one</div>
+                </div>
               </div>
             )}
-          </div>
-        </aside>
+          </main>
 
-        <main className="h-full overflow-hidden">
-          {selectedNoteId && currentDraft ? (
-            <div className="h-full flex flex-col">
-              <div className="p-6">
-                <input
-                  type="text"
-                  value={localTitle}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  onBlur={handleTitleBlur}
-                  onKeyDown={handleTitleKeyDown}
-                  className="w-full text-2xl font-medium bg-transparent border-none outline-none mb-6"
-                  placeholder="Untitled"
-                  onFocus={() => setIsTitleEditing(true)}
-                />
-                <textarea
-                  value={localContent}
-                  onChange={(e) => handleContentChange({ type: 'plain', text: e.target.value })}
-                  className="w-full flex-1 p-4 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 resize-none"
-                  placeholder="Start writing your note..."
-                  style={{ minHeight: '400px' }}
-                />
-                {saving && <div className="text-sm text-zinc-500 mt-3">Saving...</div>}
+          {/* RIGHT: chat pane */}
+          <section className="h-full flex flex-col min-h-0 border-l border-neutral-200">
+            {/* Chat header */}
+            <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
+              <div className="text-sm text-neutral-600">
+                Chat for: {currentDraft?.title ?? 'Untitled'}
               </div>
             </div>
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center text-zinc-500">
-                <div className="text-4xl mb-4">📝</div>
-                <div className="text-lg font-medium mb-2">Select a note to start</div>
-                <div className="text-sm">Choose a note from the left or create a new one</div>
-              </div>
-            </div>
-          )}
-        </main>
 
-        {/* RIGHT: chat pane */}
-        <section className="h-full flex flex-col min-h-0 border-l border-neutral-200">
-          {/* Chat header */}
-          <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
-            <div className="text-sm text-neutral-600">
-              Chat for: {currentDraft?.title ?? 'Untitled'}
-            </div>
-          </div>
-
-          {/* Scrollable messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
-            <MessageList 
-              messages={currentMessages} 
-              typing={typing && state.sending}
-              bottomRef={bottomRef}
-            />
-          </div>
-
-          {/* Bottom dock (centered input, no gray) */}
-          <div className="sticky bottom-0 z-10 border-t border-neutral-200 bg-transparent px-3 py-3 flex justify-center">
-            <div className="w-full max-w-[560px]">
-              <ChatInput
-                value={inputValue}
-                onChange={setInputValue}
-                onSend={handleSendMessage}
-                sending={state.sending}
-                disabled={!sessionId || !inputValue.trim()}
-                onLinkChat={() => {}}
-                onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
-                className="w-full"
+            {/* Scrollable messages */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+              <MessageList 
+                messages={currentMessages} 
+                typing={typing && state.sending}
+                bottomRef={bottomRef}
               />
             </div>
-          </div>
-        </section>
-      </div>
 
-      {/* Floating expand button when sidebar is collapsed */}
-      {sidebarCollapsed && (
-        <button
-          type="button"
-          className="expand-btn"
-          onClick={() => setSidebarCollapsed(false)}
-          aria-label="Expand notes sidebar"
-          title="Show notes list"
-        >
-          ☰
-        </button>
-      )}
+            {/* Bottom dock (centered input, no gray) */}
+            <div className="sticky bottom-0 z-10 border-t border-neutral-200 bg-transparent px-3 py-3 flex justify-center">
+              <div className="w-full max-w-[560px]">
+                <ChatInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSend={handleSendMessage}
+                  sending={state.sending}
+                  disabled={!sessionId || !inputValue.trim()}
+                  onLinkChat={() => {}}
+                  onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </section>
+        </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">Delete Note</h3>
-            <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-              Are you sure you want to delete this note? This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteNote(showDeleteConfirm)}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
-              >
-                Delete
-              </button>
+        {/* Floating expand button when sidebar is collapsed */}
+        {notesCollapsed && (
+          <button
+            type="button"
+            className="fixed left-4 top-20 z-30 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-lg transition-all hover:shadow-xl"
+            onClick={() => setNotesCollapsed(false)}
+            aria-label="Expand notes sidebar"
+            title="Show notes list"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+
+        {/* Delete confirmation modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-medium mb-4">Delete Note</h3>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete this note? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    handleDeleteNote(showDeleteConfirm);
+                    setShowDeleteConfirm(null);
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 } 

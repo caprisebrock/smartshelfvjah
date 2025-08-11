@@ -98,6 +98,49 @@ export function flushNoteUpdates(noteId: string): void {
   }
 }
 
+// Get or create exactly one session per note
+export async function getOrCreateNoteSession(noteId: string): Promise<{ id: string; title: string; note_id: string }> {
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth?.session?.user?.id;
+  if (!uid) throw new Error('Not authenticated');
+
+  // Try to find existing session for this note
+  const { data: existingSession, error: findError } = await supabase
+    .from('sessions')
+    .select('id, title, note_id')
+    .eq('user_id', uid)
+    .eq('note_id', noteId)
+    .limit(1)
+    .maybeSingle();
+
+  if (findError && findError.code !== 'PGRST116') {
+    throw new Error(`Failed to find note session: ${findError.message}`);
+  }
+
+  if (existingSession) {
+    return existingSession;
+  }
+
+  // Create new session if none exists
+  const { data: newSession, error: createError } = await supabase
+    .from('sessions')
+    .insert({
+      user_id: uid,
+      title: 'New Note Chat',
+      note_id: noteId,
+      token_count: 0,
+      word_count: 0
+    })
+    .select('id, title, note_id')
+    .single();
+
+  if (createError) {
+    throw new Error(`Failed to create note session: ${createError.message}`);
+  }
+
+  return newSession;
+}
+
 export type SessionRow = {
   id: string;
   user_id: string;
@@ -106,40 +149,3 @@ export type SessionRow = {
   created_at: string;
   updated_at: string;
 };
-
-export async function getOrCreateNoteSession(noteId: string): Promise<SessionRow> {
-  const { data: auth } = await supabase.auth.getSession();
-  const uid = auth?.session?.user?.id;
-  if (!uid) throw new Error('Not authenticated');
-
-  // Try find existing session scoped to this note
-  const { data: existing, error: findErr } = await supabase
-    .from('sessions')
-    .select('id, user_id, title, note_id, created_at, updated_at')
-    .eq('user_id', uid)
-    .eq('note_id', noteId)
-    .limit(1)
-    .maybeSingle();
-
-  if (findErr && findErr.code !== 'PGRST116') {
-    // Ignore no rows error (PGRST116 = No Rows Found)
-    throw new Error(findErr.message);
-  }
-
-  if (existing) return existing as SessionRow;
-
-  // Create minimal payload relying on defaults
-  const payload = {
-    user_id: uid,
-    note_id: noteId,
-    title: 'Untitled Chat',
-  } as const;
-
-  const { data, error } = await supabase
-    .from('sessions')
-    .insert(payload)
-    .select('id, user_id, title, note_id, created_at, updated_at')
-    .single();
-  if (error) throw new Error(error.message);
-  return data as SessionRow;
-}

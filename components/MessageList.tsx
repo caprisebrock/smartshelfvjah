@@ -11,8 +11,13 @@ type Msg = {
 
 export default function MessageList({
   messages,
-  typing = false
-}: { messages: Msg[]; typing?: boolean }) {
+  typing = false,
+  onInsertToNote
+}: { 
+  messages: Msg[]; 
+  typing?: boolean;
+  onInsertToNote?: (text: string) => void;
+}) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -51,6 +56,16 @@ export default function MessageList({
                   <div className="mt-1 opacity-0 group-hover:opacity-100 transition text-[10px] text-zinc-400">
                     {d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   </div>
+                  {m.sender === 'assistant' && onInsertToNote && (
+                    <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => onInsertToNote(m.content)}
+                        className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/40 transition-colors"
+                      >
+                        Insert to Note
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {m.sender === 'user' && <Avatar kind="user" />}
               </div>

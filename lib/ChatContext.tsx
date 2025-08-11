@@ -48,10 +48,11 @@ const ChatContext = createContext<{
   state: ChatState;
   sendMessage: (content: string) => Promise<boolean>;
   loadSession: (sessionId: string) => Promise<void>;
-  createNewSession: (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string, noteId?: string) => Promise<void>;
+  createNewSession: (linkType?: 'habit' | 'learning_resource' | 'general' | 'note', linkId?: string, linkTitle?: string, noteId?: string) => Promise<void>;
   ensureNoteSession: (noteId: string) => Promise<string | null>;
   generateSessionTitle: (sessionId: string) => Promise<void>;
   setCurrentSessionId: (sessionId: string) => Promise<void>;
+  openNoteChat: (noteId: string) => Promise<void>;
 } | null>(null);
 
 const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
@@ -133,7 +134,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user?.id]);
 
   // Create new session
-  const createNewSession = async (linkType?: 'habit' | 'learning_resource' | 'general', linkId?: string, linkTitle?: string, noteId?: string) => {
+  const createNewSession = async (linkType?: 'habit' | 'learning_resource' | 'general' | 'note', linkId?: string, linkTitle?: string, noteId?: string) => {
     console.log('[createNewSession] START');
     console.log('[createNewSession] user:', user);
     
@@ -522,6 +523,31 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Open a chat session for a specific note
+  const openNoteChat = async (noteId: string) => {
+    if (!user?.id) return;
+
+    try {
+      // Ensure a session exists for the note
+      const sessionId = await ensureNoteSession(noteId);
+
+      if (sessionId) {
+        // Set the session as current
+        await setCurrentSessionId(sessionId);
+      } else {
+        // If no session exists, create a new one
+        await createNewSession('note', undefined, undefined, noteId);
+        // After creating a new session, set it as current
+        const newSessionId = localStorage.getItem('currentSessionId');
+        if (newSessionId) {
+          await setCurrentSessionId(newSessionId);
+        }
+      }
+    } catch (error) {
+      console.error('Error opening note chat:', error);
+    }
+  };
+
   return (
     <ChatContext.Provider value={{
       state,
@@ -530,7 +556,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createNewSession,
       ensureNoteSession,
       generateSessionTitle,
-      setCurrentSessionId
+      setCurrentSessionId,
+      openNoteChat
     }}>
       {children}
     </ChatContext.Provider>

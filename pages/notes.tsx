@@ -314,38 +314,29 @@ export default function NotesPage() {
       </Head>
 
       <div className="notes-page">
-        <header className="notes-page__header">
-          <div className="flex items-center gap-4">
-            <a href="/" className="text-sm text-gray-600 hover:text-gray-800">
-              ← Back to Dashboard
-            </a>
-            <h1 className="text-2xl font-bold">Notes</h1>
+        <header className="sticky top-0 z-20 bg-gradient-to-b from-[#0b1735] to-[#0b1735] text-white px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <a href="/" className="text-sm opacity-80 hover:opacity-100">← Back to Dashboard</a>
+            <div className="font-semibold">Notes</div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search notes..."
-                value={searchQuery}
-                onChange={(e) => debouncedSearch(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <button
+          <div className="flex items-center gap-2">
+            <input 
+              className="rounded-md px-3 py-1.5 text-sm text-black w-[280px]" 
+              placeholder="Search notes..." 
+              value={searchQuery}
+              onChange={(e) => debouncedSearch(e.target.value)}
+            />
+            <button 
+              className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5" 
               onClick={handleNewNote}
-              className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              New Note
+              + New Note
             </button>
           </div>
         </header>
 
         <div className={clsx(
-          "grid min-h-[calc(100vh-56px)]",
+          "grid min-h-[calc(100vh-56px)] pt-[56px]",
           notesCollapsed
             ? "grid-cols-[0_1fr_380px]"
             : "grid-cols-[260px_1fr_380px]"
@@ -356,20 +347,21 @@ export default function NotesPage() {
               notesCollapsed ? "w-0 opacity-0 pointer-events-none" : "w-[260px] opacity-100"
             )}
           >
-            <div className="notes-list-header">
-              <span>Notes</span>
-              <button
-                type="button"
-                className="collapse-btn"
-                onClick={() => setNotesCollapsed(true)}
-                aria-label="Collapse notes sidebar"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            </div>
-            
             {/* Notes List */}
             <div className="p-4">
+              {/* Collapse button */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-600">Notes</span>
+                <button
+                  type="button"
+                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                  onClick={() => setNotesCollapsed(true)}
+                  aria-label="Collapse notes sidebar"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              
               {filteredNotes.length === 0 ? (
                 <div className="text-center text-zinc-500 py-8">
                   <div className="text-4xl mb-4">📝</div>

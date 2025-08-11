@@ -64,6 +64,40 @@ export async function deleteNote(id: string) {
   if (error) throw new Error(error.message);
 }
 
+// Debounced update function for autosave (600ms delay)
+let debounceTimers: Record<string, NodeJS.Timeout> = {};
+
+export function debouncedUpdateNote(
+  noteId: string, 
+  updates: Partial<Pick<Note, 'title' | 'content'>>,
+  delay: number = 600
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Clear existing timer for this note
+    if (debounceTimers[noteId]) {
+      clearTimeout(debounceTimers[noteId]);
+    }
+
+    // Set new timer
+    debounceTimers[noteId] = setTimeout(async () => {
+      try {
+        await updateNote({ id: noteId, ...updates });
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    }, delay);
+  });
+}
+
+// Flush pending updates for a specific note (used when switching notes)
+export function flushNoteUpdates(noteId: string): void {
+  if (debounceTimers[noteId]) {
+    clearTimeout(debounceTimers[noteId]);
+    delete debounceTimers[noteId];
+  }
+}
+
 export type SessionRow = {
   id: string;
   user_id: string;

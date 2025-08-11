@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Head from 'next/head';
 import ResizablePanel from '../components/Notes/ResizablePanel';
 import NotesList from '../components/Notes/NotesList';
 import NotesEditor from '../components/Notes/NotesEditor';
 import LinkedResourceBadge from '../components/Notes/LinkedResourceBadge';
 import { useUser } from '../lib/useUser';
-import { Note, getNotes, createNote, updateNote, deleteNote } from '../lib/notes';
+import { Note, getNotes, createNote, debouncedUpdateNote, flushNoteUpdates } from '../lib/notes';
 import { useChat } from '../lib/ChatContext';
 import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
 import MessageList from '../components/MessageList';
@@ -40,6 +40,11 @@ export default function NotesPage() {
     
     const setupNoteSession = async () => {
       try {
+        // Flush any pending updates from the previous note
+        if (selectedNote?.id) {
+          flushNoteUpdates(selectedNote.id);
+        }
+        
         const session = await getOrCreateNoteSession(selectedNoteId);
         await setCurrentSessionId(session.id);
       } catch (error) {
@@ -48,7 +53,7 @@ export default function NotesPage() {
     };
     
     setupNoteSession();
-  }, [selectedNoteId, setCurrentSessionId]);
+  }, [selectedNoteId, setCurrentSessionId, selectedNote?.id]);
 
   const handleSendMessage = async () => {
     const text = inputValue.trim();
@@ -65,35 +70,27 @@ export default function NotesPage() {
   const handleNewNote = async () => {
     if (!user?.id) return;
     try {
+      // Create note with title "Untitled" and empty content
       const newNote = await createNote({ title: 'Untitled' });
       setNotes(prev => [newNote, ...prev]);
+      
+      // Immediately select it and call getOrCreateNoteSession
       setSelectedNoteId(newNote.id);
     } catch (error) {
       console.error('Error creating new note:', error);
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    try {
-      await deleteNote(noteId);
-      setNotes(prev => prev.filter(n => n.id !== noteId));
-      if (selectedNoteId === noteId) {
-        setSelectedNoteId(null);
-      }
-    } catch (error) {
-      console.error('Error deleting note:', error);
-    }
-  };
-
-  const handleUpdateNote = async (updates: Partial<Note>) => {
+  const handleUpdateNote = useCallback(async (updates: Partial<Pick<Note, 'title' | 'content'>>) => {
     if (!selectedNote) return;
     
     setIsSaving(true);
     try {
-      const updatedNote = await updateNote({
-        id: selectedNote.id,
-        ...updates
-      });
+      // Use debounced update for autosave (600ms delay)
+      await debouncedUpdateNote(selectedNote.id, updates);
+      
+      // Update local state immediately for responsive UI
+      const updatedNote = { ...selectedNote, ...updates };
       setNotes(prev => prev.map(n => n.id === selectedNote.id ? updatedNote : n));
       setSelectedNote(updatedNote);
     } catch (error) {
@@ -101,7 +98,7 @@ export default function NotesPage() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [selectedNote]);
 
   return (
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
@@ -163,8 +160,8 @@ export default function NotesPage() {
                 )}
               </div>
 
-              {/* Right: Docked AI Chat */}
-              <div className="w-[420px] flex flex-col border-l border-zinc-200 dark:border-zinc-800">
+              {/* Right: Docked AI Chat - min-w-[360px] max-w-[480px] */}
+              <div className="min-w-[360px] max-w-[480px] w-[420px] flex flex-col border-l border-zinc-200 dark:border-zinc-800">
                 {selectedNote ? (
                   <>
                     <div className="flex-1 overflow-hidden">

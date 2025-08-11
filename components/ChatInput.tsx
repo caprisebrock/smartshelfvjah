@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Paperclip, Link2, Send } from 'lucide-react';
 
 export type ChatInputProps = {
@@ -10,7 +10,9 @@ export type ChatInputProps = {
   onLinkChat?: () => void;
   onAttach?: (files: File[]) => void;
   placeholder?: string;
-  className?: string; // NEW
+  className?: string;
+  noteId?: string;
+  sessionId?: string;
 };
 
 export default function ChatInput({
@@ -18,10 +20,13 @@ export default function ChatInput({
   sending = false, disabled = false,
   onLinkChat, onAttach,
   placeholder = 'Type your message...',
-  className
+  className,
+  noteId,
+  sessionId
 }: ChatInputProps) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -35,6 +40,13 @@ export default function ChatInput({
     const files = Array.from(e.target.files || []);
     if (files.length && onAttach) onAttach(files);
     e.target.value = ''; // reset
+  };
+
+  const handleLinkResource = () => {
+    setLinkOpen(true);
+    // TODO: Open LinkResourcePicker modal here
+    // This will be implemented when we have the modal component
+    console.log('Opening link resource picker for note:', noteId, 'session:', sessionId);
   };
 
   return (
@@ -71,8 +83,8 @@ export default function ChatInput({
                   </button>
                   <button
                     type="button"
-                    aria-label="Link Chat"
-                    onClick={onLinkChat}
+                    aria-label="Link resource"
+                    onClick={handleLinkResource}
                     className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                   >
                     <Link2 className="h-5 w-5 text-zinc-500" />

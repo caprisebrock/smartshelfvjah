@@ -458,6 +458,11 @@ export default function NotesPage() {
             <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
               <div className="text-sm text-neutral-600">
                 Chat for: {currentDraft?.title ?? 'Untitled'}
+                {state.currentSession?.link_title && (
+                  <span className="ml-2 text-xs text-neutral-500">
+                    Linked: {state.currentSession.link_title}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -482,6 +487,8 @@ export default function NotesPage() {
                   onLinkChat={() => {}}
                   onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
                   className="w-full"
+                  noteId={selectedNoteId || undefined}
+                  sessionId={sessionId || undefined}
                 />
               </div>
             </div>

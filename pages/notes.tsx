@@ -359,21 +359,20 @@ export default function NotesPage() {
               sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
             )}
           >
+            {/* Collapse button */}
+            <div className="flex justify-end p-2 border-b border-gray-100">
+              <button
+                type="button"
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Collapse notes sidebar"
+              >
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            
             {/* Notes List */}
             <div className="p-4">
-              {/* Collapse button */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-gray-600">Notes</span>
-                <button
-                  type="button"
-                  className="p-1 hover:bg-gray-100 rounded transition-colors"
-                  onClick={() => setSidebarOpen(false)}
-                  aria-label="Collapse notes sidebar"
-                >
-                  <ChevronLeft className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-              
               {filteredNotes.length === 0 ? (
                 <div className="text-center text-zinc-500 py-8">
                   <div className="text-4xl mb-4">📝</div>

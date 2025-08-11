@@ -307,45 +307,47 @@ export default function NotesPage() {
   const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
 
   return (
-    <>
+    <div className="notes-page">
       <Head>
         <title>Notes - SmartShelf</title>
       </Head>
 
-      <div className="notes-header">
-        <button
-          onClick={() => router.back()}
-          className="back-link"
-        >
-          Back to Dashboard
-        </button>
-        <h1>Notes</h1>
-        <div className="spacer" />
-        <div className="right-controls">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
-            <input
-              type="text"
-              placeholder="Search notes..."
-              value={searchQuery}
-              onChange={(e) => debouncedSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 w-64"
-            />
-          </div>
-          
-          {/* New Note Button */}
+      <header className="notes-page__header">
+        <div className="notes-header">
           <button
-            onClick={handleNewNote}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition-colors"
+            onClick={() => router.back()}
+            className="back-link"
           >
-            <Plus className="w-4 h-4" />
-            New Note
+            Back to Dashboard
           </button>
+          <h1>Notes</h1>
+          <div className="spacer" />
+          <div className="right-controls">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search notes..."
+                value={searchQuery}
+                onChange={(e) => debouncedSearch(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 w-64"
+              />
+            </div>
+            
+            {/* New Note Button */}
+            <button
+              onClick={handleNewNote}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-sm transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Note
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className={`notes-grid ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <div className={`notes-main ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <aside className="notes-list-pane">
           <div className="notes-list-header">
             <span>Notes</span>
@@ -522,6 +524,6 @@ export default function NotesPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 } 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useUser } from '../lib/useUser';
@@ -36,12 +36,27 @@ export default function NotesPage() {
   const [localContent, setLocalContent] = useState<string>('');
   const [isTitleEditing, setIsTitleEditing] = useState<boolean>(false);
   
+  // Chat panel state
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<Array<{
+    id: string;
+    session_id: string;
+    sender: 'user' | 'assistant';
+    content: string;
+    created_at: string;
+    pending?: boolean;
+    error?: boolean;
+  }>>([]);
+  
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [typing, setTyping] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+
+  // Refs
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Simple debounce utility
   const debounce = <T extends (...args: any[]) => void>(fn: T, ms = 700) => {
@@ -72,6 +87,34 @@ export default function NotesPage() {
     if (!user?.id) return;
     getNotes(user.id).then(setNotes).catch(console.error);
   }, [user?.id]);
+
+  // One-time session hookup per note (prevents double renders)
+  useEffect(() => {
+    let cancelled = false;
+    
+    async function run() {
+      if (!selectedNoteId) { 
+        setSessionId(null); 
+        return; 
+      }
+      
+      try {
+        // IMPORTANT: do not call sendMessage here; only ensure we have a session
+        const session = await getOrCreateNoteSession(selectedNoteId);
+        if (!cancelled) {
+          setSessionId(session.id);
+          // Set as current session in ChatContext
+          await setCurrentSessionId(session.id);
+        }
+      } catch (error) {
+        console.error('Error setting up note session:', error);
+        if (!cancelled) setSessionId(null);
+      }
+    }
+    
+    run();
+    return () => { cancelled = true; };
+  }, [selectedNoteId, setCurrentSessionId]);
 
   // Note selection logic
   const selectNote = useCallback(async (id: string) => {
@@ -106,23 +149,10 @@ export default function NotesPage() {
       setLocalContent(n?.content?.text || '');
     }
     setIsTitleEditing(false);
+    
+    // Clear optimistic messages when switching notes
+    setOptimisticMessages([]);
   }, [notes, drafts, selectedNoteId]);
-
-  // Ensure note session exists and set as current when note is selected
-  useEffect(() => {
-    if (!selectedNoteId) return;
-    
-    const setupNoteSession = async () => {
-      try {
-        const session = await getOrCreateNoteSession(selectedNoteId);
-        await setCurrentSessionId(session.id);
-      } catch (error) {
-        console.error('Error setting up note session:', error);
-      }
-    };
-    
-    setupNoteSession();
-  }, [selectedNoteId, setCurrentSessionId]);
 
   // Title change handlers
   const handleTitleChange = useCallback((val: string) => {
@@ -175,17 +205,60 @@ export default function NotesPage() {
     });
   }, [selectedNoteId, saveSelected]);
 
+  // Optimistic send message handler
   const handleSendMessage = async () => {
     const text = inputValue.trim();
-    if (!text || state.sending) return;
+    if (!text || !sessionId) return;
+    
+    // Clear input immediately
     setInputValue('');
-    setTyping(true);
+    
+    // Create optimistic message
+    const tempId = `temp-${Date.now()}-user`;
+    const optimisticMessage = {
+      id: tempId,
+      session_id: sessionId,
+      sender: 'user' as const,
+      content: text,
+      created_at: new Date().toISOString(),
+      pending: true
+    };
+    
+    // Add to optimistic messages
+    setOptimisticMessages(prev => [...prev, optimisticMessage]);
+    
+    // Scroll to bottom
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+    
     try {
+      // Send message via ChatContext
       await sendMessage(text);
-    } finally {
-      setTyping(false);
+      
+      // Remove optimistic message on success
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Mark optimistic message as error
+      setOptimisticMessages(prev => 
+        prev.map(m => m.id === tempId ? { ...m, error: true } : m)
+      );
     }
   };
+
+  // Get messages for current session (memoized to avoid re-renders)
+  const currentMessages = useMemo(() => {
+    if (!sessionId) return [];
+    
+    // Get messages from ChatContext for this session
+    const contextMessages = state.messages.filter(m => m.session_id === sessionId);
+    
+    // Combine with optimistic messages
+    const optimisticForSession = optimisticMessages.filter(m => m.session_id === sessionId);
+    
+    return [...contextMessages, ...optimisticForSession];
+  }, [sessionId, state.messages, optimisticMessages]);
 
   const handleNewNote = async () => {
     if (!user?.id) return;
@@ -370,19 +443,20 @@ export default function NotesPage() {
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 overflow-y-auto">
                   <MessageList 
-                    messages={state.messages} 
+                    messages={currentMessages} 
                     typing={typing && state.sending}
+                    bottomRef={bottomRef}
                   />
                 </div>
                 <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 bg-white dark:bg-zinc-900">
                   <div className="notesChatInputWrap flex items-center justify-center">
-                    <div className="max-w-[560px] w-full">
+                    <div className="notesChatInputInner w-full max-w-[560px] flex gap-2 items-center">
                       <ChatInput
                         value={inputValue}
                         onChange={setInputValue}
                         onSend={handleSendMessage}
                         sending={state.sending}
-                        disabled={!state.currentSession}
+                        disabled={!sessionId || !inputValue.trim()}
                         onLinkChat={() => {}}
                         onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
                       />

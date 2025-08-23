@@ -1,0 +1,246 @@
+// COPY THIS ENTIRE FILE FROM: styles/notes.css 
+/* Notes Page Specific Styles - Safari-friendly chat dock fix */
+
+/* full-height page frame */
+.notes-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .notes-page__header {
+    flex: 0 0 auto;
+    padding: 12px 16px 8px;
+  }
+  
+  /* 3-column container should fill the viewport height under the top bar */
+  .notes-main {
+    display: grid;
+    grid-template-columns: 260px 1fr 380px; /* list | editor | chat */
+    gap: 0;
+    height: calc(100vh - 56px); /* adjust if your header height differs */
+  }
+  
+  /* Collapse behavior preserved */
+  .notes-main.collapsed { 
+    grid-template-columns: 0 1fr 460px; 
+  }
+  
+  .notes-list-pane { 
+    overflow: hidden; 
+    border-right: 1px solid #eee; 
+  }
+  
+  .notes-editor-pane { 
+    overflow: auto; 
+    padding-right: 8px; 
+  }
+  
+  /* CHAT PANE = flex column */
+  .notes-chat-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;        /* allow inner scrolling */
+    border-left: 1px solid #eee;
+  }
+  
+  /* header */
+  .notes-chat-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    background: transparent;
+  }
+  
+  .notes-chat-title {
+    font-size: 0.9rem;
+    color: #666;
+  }
+  
+  /* scrollable message region */
+  .notes-chat-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    background: transparent;
+  }
+  
+  /* dock at bottom: remove gray, center the input */
+  .notes-chat-dock {
+    position: sticky;
+    bottom: 0;
+    background: transparent !important;  /* kill any inherited gray */
+    border-top: 1px solid #eee;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: center; /* center horizontally */
+    align-items: center;
+    z-index: 1;
+  }
+  
+  /* make input not full-bleed; tweak to taste */
+  .notes-chat-input,
+  .notes-chat-dock .chat-input-root {
+    width: 100%;
+    max-width: 560px;  /* narrower than panel for a clean look */
+    margin: 0 auto;
+  }
+  
+  /* Remove any accidental background on nested shells */
+  .notes-chat-dock *[class*="dock"],
+  .notes-chat-dock *[class*="bar"],
+  .notes-chat-dock *[class*="container"] {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  
+  /* Safari baseline fix: avoid input jumping when viewport resizes */
+  @supports (-webkit-touch-callout: none) {
+    .notes-chat-dock {
+      transform: translateZ(0);
+      will-change: transform;
+    }
+  }
+  
+  /* Header styling */
+  .notes-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px 8px;
+  }
+  
+  .notes-header .spacer { 
+    flex: 1; 
+  }
+  
+  .back-link {
+    text-decoration: none;
+    color: #555;
+    font-size: 14px;
+  }
+  
+  .back-link:hover { 
+    text-decoration: underline; 
+  }
+  
+  .right-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  /* Notes list header */
+  .notes-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 4px 8px 0;
+  }
+  
+  .notes-list-header span {
+    font-weight: 500;
+    color: #374151;
+  }
+  
+  .collapse-btn {
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: .6;
+  }
+  
+  .collapse-btn:hover { 
+    opacity: 1; 
+  }
+  
+  /* Floating expand button */
+  .expand-btn {
+    position: fixed;
+    left: 12px;
+    top: 88px;
+    z-index: 30;
+    border: none;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  
+  /* Dark mode support */
+  @media (prefers-color-scheme: dark) {
+    .notes-list-pane {
+      border-right-color: #374151;
+    }
+    
+    .notes-chat-pane {
+      border-left-color: #374151;
+    }
+    
+    .notes-chat-header {
+      border-bottom-color: #374151;
+    }
+    
+    .notes-chat-title {
+      color: #9ca3af;
+    }
+    
+    .notes-chat-dock {
+      border-top-color: #374151;
+    }
+    
+    .expand-btn {
+      background: #1f2937;
+      color: #d1d5db;
+    }
+    
+    .back-link {
+      color: #9ca3af;
+    }
+    
+    .back-link:hover {
+      color: #d1d5db;
+    }
+    
+    .notes-header {
+      background: #111827;
+    }
+    
+    .notes-header h1 {
+      color: #f9fafb;
+    }
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 1024px) {
+    .notes-main {
+      grid-template-columns: 240px 1fr 320px;
+      gap: 0;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .notes-main {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    
+    .notes-main.collapsed {
+      grid-template-columns: 1fr;
+    }
+    
+    .notes-list-pane {
+      order: 3;
+    }
+    
+    .notes-editor-pane {
+      order: 1;
+    }
+    
+    .notes-chat-pane {
+      order: 2;
+      border-left: none;
+    }
+  } 

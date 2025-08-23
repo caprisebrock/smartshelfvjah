@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { BookOpen, Edit, ArrowLeft } from 'lucide-react';
-import BackButton from '../../components/BackButton';
-import { useUser } from '../../lib/useUser';
-import { supabase } from '../../lib/supabaseClient';
+import BackButton from '../../modules/shared/components/BackButton';
+import { useUser } from '../../modules/auth/hooks/useUser';
+import { supabase } from '../../modules/database/config/databaseConfig';
 
 interface LearningResource {
   id: string;
@@ -16,8 +16,9 @@ interface LearningResource {
   duration_minutes: number;
   progress_minutes: number;
   category_tags: string[];
+  reminder_date?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export default function ResourceDetailPage() {
@@ -149,7 +150,7 @@ export default function ResourceDetailPage() {
         <Head>
           <title>Loading Resource - SmartShelf</title>
         </Head>
-        <div className="min-h-screen bg-white animate-fadeIn">
+        <div className="min-h-screen bg-gray-50 animate-fadeIn">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center gap-4 mb-8">
               <BackButton />
@@ -176,7 +177,7 @@ export default function ResourceDetailPage() {
         <Head>
           <title>Resource Not Found - SmartShelf</title>
         </Head>
-        <div className="min-h-screen bg-white animate-fadeIn">
+        <div className="min-h-screen bg-gray-50 animate-fadeIn">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center gap-4 mb-8">
               <BackButton />
@@ -187,7 +188,7 @@ export default function ResourceDetailPage() {
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📚</div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">Resource Not Found</h2>
-              <p className="text-gray-600 mb-6">The resource you're looking for doesn't exist or you don't have permission to view it.</p>
+              <p className="text-gray-600 mb-6">The resource you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it.</p>
               <button
                 onClick={handleBackToMyLearning}
                 className="btn-primary"
@@ -210,177 +211,119 @@ export default function ResourceDetailPage() {
         <title>{resource.title} - SmartShelf</title>
         <meta name="description" content={`View details for ${resource.title}`} />
       </Head>
-      <div className="min-h-screen bg-white animate-fadeIn">
+      <div className="min-h-screen bg-gray-50 animate-fadeIn">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Header */}
-          <div className="flex items-center gap-4 mb-8 animate-slideIn">
-            <BackButton />
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-blue-600" />
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900">Resource Details</h1>
-              </div>
-              <p className="text-gray-600">View and manage your learning resource</p>
-            </div>
-          </div>
-
-          {/* Resource Card */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center text-4xl">
-                {resource.emoji}
-              </div>
-              <div className="flex-1">
-                {isEditing ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">Title</label>
-                      <input
-                        type="text"
-                        value={editForm.title}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                        className="input-field"
-                        placeholder="Resource title"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-900 mb-2">Author</label>
-                      <input
-                        type="text"
-                        value={editForm.author}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, author: e.target.value }))}
-                        className="input-field"
-                        placeholder="Author name"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">Duration (minutes)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={editForm.duration}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, duration: e.target.value }))}
-                          className="input-field"
-                          placeholder="Total duration"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">Progress (minutes)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={editForm.progress}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, progress: e.target.value }))}
-                          className="input-field"
-                          placeholder="Current progress"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{resource.title}</h2>
-                    {resource.author && (
-                      <p className="text-lg text-gray-600 mb-2">by {resource.author}</p>
-                    )}
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span className="capitalize">{resource.type}</span>
-                      <span>•</span>
-                      <span>Created {new Date(resource.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Progress Section */}
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold text-gray-900">Progress</h3>
-                <span className="text-sm text-gray-600">{progressPercentage}% complete</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                <div
-                  className="bg-blue-500 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>{resource.progress_minutes} minutes completed</span>
-                <span>{resource.duration_minutes} minutes total</span>
-              </div>
-            </div>
-
-            {/* Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Resource Type</h4>
-                <p className="text-gray-600 capitalize">{resource.type}</p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Duration</h4>
-                <p className="text-gray-600">{resource.duration_minutes} minutes</p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Progress</h4>
-                <p className="text-gray-600">{resource.progress_minutes} minutes</p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Last Updated</h4>
-                <p className="text-gray-600">{new Date(resource.updated_at).toLocaleDateString()}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-4">
+          {/* Back Link */}
+          <div className="mb-6">
             <button
               onClick={handleBackToMyLearning}
-              className="btn-secondary"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              <ArrowLeft className="w-4 h-4" />
               Back to My Learning
             </button>
-            {isEditing ? (
-              <>
-                <button
-                  onClick={handleCancelEdit}
-                  className="btn-secondary"
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="btn-primary"
-                  disabled={saving}
-                >
-                  {saving ? (
+          </div>
+
+          {/* Centered Resource Card */}
+          <div className="max-w-xl mx-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              {/* Top Row: Large Emoji, Title, Type */}
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">{resource.emoji}</div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{resource.title}</h1>
+                <div className="flex items-center justify-center gap-2 text-lg text-gray-600">
+                  <span className="capitalize">{resource.type}</span>
+                  {resource.author && (
                     <>
-                      <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Save Changes
+                      <span>•</span>
+                      <span>by {resource.author}</span>
                     </>
                   )}
+                </div>
+              </div>
+
+              {/* Progress Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Progress</h3>
+                <div className="text-center mb-3">
+                  <span className="text-2xl font-bold text-gray-900">
+                    {resource.progress_minutes} / {resource.duration_minutes} minutes
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                  <div
+                    className="bg-emerald-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+                <div className="text-center text-sm text-gray-600">
+                  {progressPercentage}% complete
+                </div>
+              </div>
+
+              {/* Tags Section */}
+              {resource.category_tags && resource.category_tags.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {resource.category_tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="inline-block px-3 py-1 text-sm bg-slate-100 text-gray-700 rounded-full"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reminder Date Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Reminder</h3>
+                <p className="text-gray-600">
+                  {resource.reminder_date 
+                    ? `Reminder set for ${new Date(resource.reminder_date).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}`
+                    : 'No reminder set'
+                  }
+                </p>
+              </div>
+
+              {/* Created Date Section */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Created</h3>
+                <p className="text-gray-600">
+                  Added on {new Date(resource.created_at).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleEdit}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  📝 Edit
                 </button>
-              </>
-            ) : (
-              <button
-                onClick={handleEdit}
-                className="btn-primary"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Resource
-              </button>
-            )}
+                <button
+                  className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  onClick={() => alert('Delete functionality coming soon!')}
+                >
+                  ❌ Delete
+                </button>
+              </div>
+            </div>
           </div>
+
+
         </div>
       </div>
     </>

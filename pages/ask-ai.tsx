@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Bot, Send, Sparkles, RefreshCw, Copy, Save, BookOpen, History, Zap, Clock, MessageSquare } from 'lucide-react';
-import BackButton from '../components/BackButton';
+import BackButton from '../modules/shared/components/BackButton';
 
 const TONE_OPTIONS = [
   { value: 'Summary', label: 'Summary', icon: '📝', description: 'Concise overview of key points' },

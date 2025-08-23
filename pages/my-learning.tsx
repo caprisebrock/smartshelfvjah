@@ -2,30 +2,20 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { BookOpen, Plus, Filter, Grid, List, Trash2 } from 'lucide-react';
-import BackButton from '../components/BackButton';
-import { useUser } from '../lib/useUser';
-import { supabase } from '../lib/supabaseClient';
+import { PlusCircle, BookOpen, Clock, Target, TrendingUp, ArrowLeft } from 'lucide-react';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { supabase } from '../modules/database/config/databaseConfig';
+import SmartAssistantBanner from '../modules/ai-companion/components/SmartAssistantBanner';
+import { useSmartSuggestions } from '../modules/ai-companion/hooks/useSmartSuggestions';
 
-// Resource types and emoji mapping
-const RESOURCE_TYPES = [
-  { key: 'all', label: 'All', emoji: '✨' },
-  { key: 'book', label: 'Books', emoji: '📚' },
-  { key: 'podcast', label: 'Podcasts', emoji: '🎧' },
-  { key: 'course', label: 'Courses', emoji: '🎓' },
-  { key: 'video', label: 'Videos', emoji: '📺' },
-  { key: 'article', label: 'Articles', emoji: '📰' },
-];
-
-const TYPE_EMOJI = {
-  book: '📚',
-  podcast: '🎧',
-  course: '🎓',
-  video: '📺',
-  article: '📰',
-};
-
-type ResourceTypeKey = keyof typeof TYPE_EMOJI;
+// Learning resource types with beautiful emoji icons
+const LEARNING_TYPES = [
+  { type: 'Book', emoji: '📚', label: 'Books' },
+  { type: 'Podcast', emoji: '🎧', label: 'Podcasts' },
+  { type: 'Video', emoji: '🎬', label: 'Videos' },
+  { type: 'Article', emoji: '📰', label: 'Articles' },
+  { type: 'Course', emoji: '🧠', label: 'Courses' },
+] as const;
 
 interface LearningResource {
   id: string;
@@ -37,29 +27,101 @@ interface LearningResource {
   duration_minutes: number;
   progress_minutes: number;
   category_tags: string[];
-  notification?: string;
+  created_at: string;
+  updated_at?: string;
 }
+
+// Compact Learning Resource Card Component
+const LearningResourceCard = ({ resource }: { resource: LearningResource }) => {
+  const router = useRouter();
+  const progressPercentage = Math.min(100, (resource.progress_minutes / resource.duration_minutes) * 100);
+  
+  // Get the appropriate emoji for the resource type
+  const typeConfig = LEARNING_TYPES.find(t => t.type.toLowerCase() === resource.type.toLowerCase());
+  const displayEmoji = typeConfig?.emoji || resource.emoji || '📖';
+
+  const handleCardClick = () => {
+    router.push(`/my-learning/${resource.id}`);
+  };
+
+  return (
+    <div
+      onClick={handleCardClick}
+      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-3 cursor-pointer hover:bg-gray-50 border border-gray-100"
+    >
+      {/* Main Content: Emoji + Title/Author/Duration Block */}
+      <div className="flex items-start gap-3 mb-3">
+        {/* Compact Emoji Badge */}
+        <div className="bg-slate-100 rounded-xl p-2 flex-shrink-0">
+          <span className="text-lg">{displayEmoji}</span>
+        </div>
+        
+        {/* Content Stack */}
+        <div className="flex-1 min-w-0">
+          {/* Title */}
+          <h3 className="text-base font-bold text-gray-900 line-clamp-2 mb-1">
+            {resource.title}
+          </h3>
+          
+          {/* Author/Type */}
+          {resource.author && (
+            <p className="text-sm text-gray-600 mb-1">
+              by {resource.author}
+            </p>
+          )}
+          
+          {/* Duration + Progress Inline */}
+          <div className="text-sm text-gray-500">
+            {resource.progress_minutes} / {resource.duration_minutes} min
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="mb-3">
+        <div className="w-full bg-slate-200 rounded-full h-2">
+          <div
+            className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Tags Row */}
+      {resource.category_tags && resource.category_tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {resource.category_tags.slice(0, 3).map((tag, index) => (
+            <span
+              key={index}
+              className="inline-block px-2 py-0.5 text-xs bg-slate-100 text-gray-700 rounded-full"
+            >
+              {tag}
+            </span>
+          ))}
+          {resource.category_tags.length > 3 && (
+            <span className="inline-block px-2 py-0.5 text-xs bg-slate-100 text-gray-500 rounded-full">
+              +{resource.category_tags.length - 3}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function MyLearningPage() {
   const [resources, setResources] = useState<LearningResource[]>([]);
-  const [activeTab, setActiveTab] = useState('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [loading, setLoading] = useState(true);
-  const [addingProgress, setAddingProgress] = useState<string | null>(null);
-  const [progressInput, setProgressInput] = useState('');
-  const router = useRouter();
   const { user } = useUser();
+  const { currentSuggestion, dismissSuggestion } = useSmartSuggestions();
 
   // Load resources from Supabase on mount
   useEffect(() => {
     const loadResources = async () => {
       if (!user?.id) {
-        console.log('👤 [MyLearning] No authenticated user, skipping resources load');
         setLoading(false);
         return;
       }
-      
-      console.log('🔍 [MyLearning] Loading resources for user:', user.id);
 
       try {
         const { data, error } = await supabase
@@ -83,421 +145,215 @@ export default function MyLearningPage() {
     loadResources();
   }, [user?.id]);
 
-  // Filtering logic
-  const filteredResources =
-    activeTab === 'all'
-      ? resources
-      : resources.filter((r) => r.type === activeTab);
-
-  // Group resources by type for grouped view
-  const groupedResources = RESOURCE_TYPES.filter(t => t.key !== 'all').map(type => ({
-    ...type,
-    items: resources.filter(r => r.type === type.key),
-  }));
-
-  // Handlers
-  const handleCardClick = (id: string) => {
-    router.push(`/resource/${id}`);
-  };
-  const handleAddResource = () => {
-    router.push('/add-resource');
-  };
-
-  const getProgressColor = (progress: number, duration: number) => {
-    const percentage = (progress / duration) * 100;
-    if (percentage >= 100) return 'from-green-500 to-green-600';
-    if (percentage >= 75) return 'from-blue-500 to-blue-600';
-    if (percentage >= 50) return 'from-yellow-500 to-yellow-600';
-    return 'from-gray-400 to-gray-500';
-  };
-
-  // Add progress function
-  const handleAddProgress = async (resourceId: string) => {
-    if (!user?.id || !progressInput.trim()) return;
-
-    const minutes = parseInt(progressInput);
-    if (isNaN(minutes) || minutes <= 0) {
-      alert('Please enter a valid number of minutes');
-      return;
-    }
-
-    try {
-      // Get current resource
-      const currentResource = resources.find(r => r.id === resourceId);
-      if (!currentResource) return;
-
-      const newProgress = Math.min(currentResource.duration_minutes, currentResource.progress_minutes + minutes);
-
-      const { error } = await supabase
-        .from('learning_resources')
-        .update({
-          progress_minutes: newProgress,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', resourceId)
-        .eq('user_id', user.id);
-
-      if (error) {
-        alert('Failed to update progress: ' + error.message);
-        return;
-      }
-
-      // Update local state
-      setResources(prev => prev.map(r => 
-        r.id === resourceId 
-          ? { ...r, progress_minutes: newProgress, updated_at: new Date().toISOString() }
-          : r
-      ));
-
-      // Reset input and close
-      setProgressInput('');
-      setAddingProgress(null);
-    } catch (err) {
-      console.error('Error updating progress:', err);
-      alert('Failed to update progress. Please try again.');
-    }
-  };
-
-  // Delete resource function
-  const handleDeleteResource = async (resourceId: string) => {
-    if (!user?.id) {
-      alert('Authentication error. Please sign in again.');
-      return;
-    }
-
-    const confirmed = confirm('Are you sure you want to delete this learning resource? This action cannot be undone.');
-    if (!confirmed) return;
-
-    try {
-      const { error } = await supabase
-        .from('learning_resources')
-        .delete()
-        .eq('id', resourceId)
-        .eq('user_id', user.id);
-
-      if (error) {
-        alert('Failed to delete resource: ' + error.message);
-        return;
-      }
-
-      // Remove from local state
-      setResources(prev => prev.filter(r => r.id !== resourceId));
-      alert('Resource deleted successfully!');
-    } catch (err) {
-      console.error('Error deleting resource:', err);
-      alert('Failed to delete resource. Please try again.');
-    }
-  };
-
-  const ResourceCard = ({ res, index }: { res: LearningResource; index: number }) => {
-    const [deleting, setDeleting] = useState(false);
-
-    const onDeleteClick = async (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      setDeleting(true);
-      await handleDeleteResource(res.id);
-      setDeleting(false);
+  // Group resources by type
+  const groupedResources = LEARNING_TYPES.map(typeConfig => {
+    const typeResources = resources.filter(r => 
+      r.type.toLowerCase() === typeConfig.type.toLowerCase()
+    );
+    return {
+      ...typeConfig,
+      resources: typeResources
     };
+  });
 
-    const onAddProgressClick = (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      setAddingProgress(res.id);
-      setProgressInput('');
-    };
+  // Calculate dashboard stats
+  const totalResources = resources.length;
+  const totalMinutes = resources.reduce((sum, r) => sum + r.progress_minutes, 0);
+  const completedResources = resources.filter(r => r.progress_minutes >= r.duration_minutes).length;
+  const completionRate = totalResources > 0 ? Math.round((completedResources / totalResources) * 100) : 0;
 
+  if (loading) {
     return (
-      <div
-        className="bg-white rounded-xl border border-gray-200 p-6 animate-fadeIn relative"
-        style={{ animationDelay: `${index * 0.1}s` }}
-      >
-        {/* Delete Button */}
-        <button
-          onClick={onDeleteClick}
-          disabled={deleting}
-          className="absolute top-3 right-3 z-10 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Delete resource"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-
-        {/* Card Content - Not clickable */}
-        <div className="mb-4">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center text-3xl border border-gray-200">
-              {res.emoji}
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">{res.title}</h3>
-              {res.author && (
-                <p className="text-gray-600 text-sm mb-2">{res.author}</p>
-              )}
-              <div className="flex items-center gap-4 text-sm text-gray-500">
-                <span>{res.duration_minutes} min</span>
-                <span>•</span>
-                <span>{res.progress_minutes} / {res.duration_minutes} min completed</span>
+      <>
+        <Head>
+          <title>My Learning - SmartShelf</title>
+          <meta name="description" content="Your personalized learning dashboard" />
+        </Head>
+        <div className="min-h-screen bg-gray-50 dark:bg-zinc-900">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="animate-pulse">
+              <div className="h-8 bg-gray-200 dark:bg-zinc-700 rounded w-48 mb-8"></div>
+              <div className="space-y-10">
+                {[1, 2, 3].map(i => (
+                  <div key={i}>
+                    <div className="h-6 bg-gray-200 dark:bg-zinc-700 rounded w-32 mb-4"></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {[1, 2, 3].map(j => (
+                        <div key={j} className="h-32 bg-gray-200 dark:bg-zinc-700 rounded-lg"></div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-          
-          {/* Progress bar */}
-          <div className="mb-4">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Progress</span>
-              <span>{Math.round((res.progress_minutes / res.duration_minutes) * 100)}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`bg-gradient-to-r ${getProgressColor(res.progress_minutes, res.duration_minutes)} h-2 rounded-full transition-all duration-500`}
-                style={{ width: `${Math.min(100, (res.progress_minutes / res.duration_minutes) * 100)}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* Type Badge */}
-          <div className="flex justify-end">
-            <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium capitalize border border-gray-200">
-              {res.type}
-            </div>
-          </div>
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-          {addingProgress === res.id ? (
-            /* Edit State - Only show input + buttons */
-            <div className="flex justify-center gap-2 w-full">
-              <input
-                type="number"
-                min="1"
-                value={progressInput}
-                onChange={(e) => setProgressInput(e.target.value)}
-                className="rounded px-2 py-1 border border-gray-300 text-sm w-24 text-center"
-                placeholder="Add minutes..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleAddProgress(res.id);
-                  }
-                }}
-              />
-              <button
-                onClick={() => handleAddProgress(res.id)}
-                className="bg-blue-600 text-white px-3 py-1 rounded text-sm ml-2 hover:bg-blue-700"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setAddingProgress(null)}
-                className="text-gray-500 text-sm ml-2 hover:underline"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            /* Normal State - Show View Details + Add Minutes */
-            <>
-              <button
-                onClick={() => handleCardClick(res.id)}
-                className="text-blue-600 text-sm hover:underline"
-              >
-                View Details
-              </button>
-              <button
-                onClick={onAddProgressClick}
-                className="text-blue-500 text-sm hover:underline"
-              >
-                + Add Minutes
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      </>
     );
-  };
+  }
 
   return (
     <>
       <Head>
         <title>My Learning - SmartShelf</title>
-        <meta name="description" content="Track your books, podcasts, courses, videos, and more" />
+        <meta name="description" content="Your personalized learning dashboard" />
       </Head>
-      <div className="min-h-screen bg-white animate-fadeIn">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Header with back button */}
-          <div className="flex items-center gap-4 mb-8 animate-slideIn">
-            <BackButton />
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-blue-600" />
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900">My Learning</h1>
-              </div>
-              <p className="text-gray-600">Track your books, podcasts, courses, videos, and more — all in one place.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center bg-gray-100 rounded-xl p-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    viewMode === 'grid' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
-                      : 'text-gray-600 hover:text-blue-600'
-                  }`}
-                >
-                  <Grid className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    viewMode === 'list' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
-                      : 'text-gray-600 hover:text-blue-600'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
-              <button
-                onClick={handleAddResource}
-                className="btn-primary group"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Resource
-              </button>
-            </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-zinc-900">
+        {/* Main Content */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Back to Dashboard Button */}
+          <Link href="/" className="flex items-center text-blue-600 hover:underline mb-4">
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Dashboard
+          </Link>
+
+          {/* Page Header */}
+          <div className="mb-10">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              My Learning
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Track your learning journey across books, podcasts, videos, and more
+            </p>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex items-center gap-4 mb-8 animate-fadeIn" style={{ animationDelay: '0.2s' }}>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Filter:</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {RESOURCE_TYPES.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-2 rounded-xl font-medium transition-all text-sm flex items-center gap-2 hover:scale-105 active:scale-95 ${
-                    activeTab === tab.key
-                      ? 'bg-blue-100 text-blue-700 shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-700'
-                  }`}
-                >
-                  <span>{tab.emoji}</span>
-                  <span>{tab.label}</span>
-                  {tab.key !== 'all' && (
-                    <span className="ml-1 px-2 py-0.5 bg-white rounded-full text-xs">
-                      {resources.filter(r => r.type === tab.key).length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Resource Cards Grid or Empty State */}
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-2xl shadow-lg p-6 animate-pulse">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 bg-gray-200 rounded-2xl"></div>
-                    <div className="flex-1">
-                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-2 bg-gray-200 rounded"></div>
-                    <div className="h-2 bg-gray-200 rounded w-4/5"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filteredResources.length === 0 ? (
-            <div className="card-gradient animate-fadeIn" style={{ animationDelay: '0.4s' }}>
-              <div className="p-12 text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <BookOpen className="w-10 h-10 text-blue-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">No learning resources yet</h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto leading-relaxed">
-                  Start your learning journey by adding your first resource. Track books, podcasts, courses, and more!
-                </p>
-                <button
-                  onClick={handleAddResource}
-                  className="btn-primary group"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Add Your First Resource
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="animate-fadeIn" style={{ animationDelay: '0.4s' }}>
-              {/* Stats bar */}
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 mb-8 border border-blue-100">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-700 mb-1">
-                      {filteredResources.length}
-                    </div>
-                    <div className="text-sm text-blue-600">
-                      {activeTab === 'all' ? 'Total Resources' : `${RESOURCE_TYPES.find(t => t.key === activeTab)?.label || 'Resources'}`}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-700 mb-1">
-                      {filteredResources.filter(r => r.progress_minutes >= r.duration_minutes).length}
-                    </div>
-                    <div className="text-sm text-green-600">Completed</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-700 mb-1">
-                      {filteredResources.reduce((sum, r) => sum + r.progress_minutes, 0)}
-                    </div>
-                    <div className="text-sm text-purple-600">Minutes Learned</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Grouped by type if All tab, else flat grid */}
-              {activeTab === 'all' ? (
-                groupedResources.map(group => (
-                  <div key={group.key} className="mb-12">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center">
-                        <span className="text-xl">{group.emoji}</span>
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold text-gray-900">{group.label}</h2>
-                        <p className="text-gray-600 text-sm">{group.items.length} resources</p>
-                      </div>
-                    </div>
-                    {group.items.length === 0 ? (
-                      <div className="text-gray-400 text-sm mb-4 ml-11 italic">
-                        No {group.label.toLowerCase()} yet.
-                      </div>
-                    ) : (
-                      <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
-                        {group.items.map((res: LearningResource, index: number) => (
-                          <ResourceCard key={res.id} res={res} index={index} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
-                  {filteredResources.map((res: LearningResource, index: number) => (
-                    <ResourceCard key={res.id} res={res} index={index} />
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Smart Assistant Banner */}
+          {currentSuggestion && (
+            <SmartAssistantBanner
+              suggestion={currentSuggestion}
+              onDismiss={() => dismissSuggestion(currentSuggestion.id)}
+            />
           )}
+
+          {/* AI-Powered Overview Section */}
+          <div className="mb-12">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+              🧠 AI-Powered Overview
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Total Resources */}
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-600">Total Resources</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{totalResources}</div>
+              </div>
+
+              {/* Total Minutes */}
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-5 h-5 text-green-600" />
+                  <span className="text-sm font-medium text-gray-600">Minutes Logged</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{totalMinutes.toLocaleString()}</div>
+              </div>
+
+              {/* Completion Rate */}
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="w-5 h-5 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-600">Completion Rate</span>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{completionRate}%</div>
+              </div>
+
+              {/* Smart Insight */}
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  <span className="text-sm font-medium text-gray-600">Smart Insight</span>
+                </div>
+                <div className="text-sm text-gray-700">You're 42% done with your goal this month!</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Learning Sections */}
+          <div className="space-y-10">
+            {groupedResources.map(({ type, label, resources: sectionResources }) => (
+              <section key={type}>
+                {/* Clean Section Header (No Emoji) */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {label}
+                  </h2>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {sectionResources.length} {sectionResources.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
+
+                {/* Section Content */}
+                {sectionResources.length === 0 ? (
+                  <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                    <p className="text-gray-500">
+                      No {label.toLowerCase()} added yet. Start by adding your first one!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sectionResources.map((resource) => (
+                      <LearningResourceCard key={resource.id} resource={resource} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+
+            {/* All Learning Resources Section */}
+            {resources.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    All My Learning Resources
+                  </h2>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {resources.length} total {resources.length === 1 ? 'resource' : 'resources'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {resources
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((resource) => (
+                      <LearningResourceCard key={`all-${resource.id}`} resource={resource} />
+                    ))}
+                </div>
+              </section>
+            )}
+
+            {/* Global Empty State */}
+            {resources.length === 0 && (
+              <div className="text-center py-16">
+                <div className="text-6xl mb-6">📚</div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                  Start Your Learning Journey
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
+                  Add your first learning resource to begin tracking your progress across books, 
+                  podcasts, courses, and more.
+                </p>
+                <Link
+                  href="/add-resource"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition"
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  Add Your First Resource
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Floating Add Button */}
+        {resources.length > 0 && (
+          <Link
+            href="/add-resource"
+            className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition z-50"
+            title="Add new learning resource"
+          >
+            <PlusCircle className="w-6 h-6" />
+          </Link>
+        )}
       </div>
     </>
   );

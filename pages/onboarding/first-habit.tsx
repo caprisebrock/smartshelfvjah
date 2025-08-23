@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import BackButton from '../../components/BackButton';
+import BackButton from '../../modules/shared/components/BackButton';
 import EmojiPicker from 'emoji-picker-react';
-import { useHabits } from '../../lib/HabitsContext';
-import { useUser } from '../../lib/useUser';
-import { supabase } from '../../lib/supabaseClient';
+import { useHabits } from '../../modules/habits/context/HabitsContext';
+import { useUser } from '../../modules/auth/hooks/useUser';
+import { supabase } from '../../modules/database/config/databaseConfig';
 import { Smile, Palette, Target } from 'lucide-react';
 
 const presetColors = [

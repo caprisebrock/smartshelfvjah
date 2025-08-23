@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Link from "next/link";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../modules/database/config/databaseConfig";
 import { Target, RefreshCw } from "lucide-react";
 
 export default function AuthCallback() {

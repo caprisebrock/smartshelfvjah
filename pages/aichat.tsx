@@ -2,17 +2,17 @@ import React, { useState, useRef, useEffect, Fragment } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { MessageCircle, Plus, Send, Bot, User, Loader2, ArrowLeft, AlertCircle, BookOpen, FileText, Target, ChevronDown, Settings, Trash2 } from 'lucide-react';
-import { useChat } from '../lib/ChatContext';
-import { useUser } from '../lib/useUser';
-import { useToast } from '../lib/ToastContext';
-import { supabase } from '../lib/supabaseClient';
-import { saveMessageToSupabase } from '../lib/supabase/saveMessageToSupabase';
+import { useChat } from '../modules/ai-chat/context/ChatContext';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { useToast } from '../modules/shared/context/ToastContext';
+import { supabase } from '../modules/database/config/databaseConfig';
+import { saveMessageToSupabase } from '../modules/ai-chat/services/saveMessageToSupabase';
 import { isToday, isYesterday, format } from 'date-fns';
 import { v4 as uuid } from 'uuid';
-import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
-import { generateSessionTitle } from '../lib/generateSessionTitle';
-import ChatInput from '../components/ChatInput';
-import MessageList from '../components/MessageList';
+import ConfirmDeleteModal from '../modules/shared/components/ConfirmDeleteModal';
+import { generateSessionTitle } from '../modules/ai-chat/services/generateSessionTitle';
+import ChatInput from '../modules/ai-chat/components/ChatInput';
+import MessageList from '../modules/ai-chat/components/MessageList';
 
 // Helper function to group sessions by link type
 const groupSessionsByType = (sessions: any[]) => {
@@ -145,7 +145,7 @@ export default function AIChatPage() {
 
   // Function to generate and update session title
   const generateAndUpdateSessionTitle = async (sessionId: string) => {
-    if (!sessionId || titleGenerated.has(sessionId)) {
+    if (!sessionId || typeof sessionId !== 'string' || titleGenerated.has(sessionId)) {
       return; // Already generated or no session
     }
 
@@ -575,7 +575,10 @@ export default function AIChatPage() {
   };
 
   const confirmDeleteSession = async () => {
-    if (!sessionToDelete) return;
+    if (!sessionToDelete || !sessionToDelete.id || typeof sessionToDelete.id !== 'string') {
+      console.warn('confirmDeleteSession: invalid sessionToDelete', sessionToDelete);
+      return;
+    }
 
     try {
       // Step 1: Delete all messages in the session

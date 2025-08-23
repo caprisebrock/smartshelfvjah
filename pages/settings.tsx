@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Settings, Save, Sparkles, Brain, Zap, MessageSquare, Quote, Eye, EyeOff, Trash2, Download, Upload, Moon, Sun, Monitor } from 'lucide-react';
-import BackButton from '../components/BackButton';
-import StatBadge from '../components/StatBadge';
-import { useTheme } from '../lib/ThemeContext';
+import BackButton from '../modules/shared/components/BackButton';
+import StatBadge from '../modules/progress/components/StatBadge';
+import { useTheme } from '../modules/shared/context/ThemeContext';
 
 interface SmartSettings {
   enableMotivationalQuotes: boolean;

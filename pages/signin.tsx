@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useUser } from '../lib/useUser';
+import { useUser } from '../modules/auth/hooks/useUser';
 import { Target, AlertCircle } from 'lucide-react';
-import GoogleSignInButton from '../components/GoogleSignInButton';
+import GoogleSignInButton from '../modules/auth/components/GoogleSignInButton';
 
 export default function SignIn() {
   const [error, setError] = useState('');
@@ -94,7 +94,7 @@ export default function SignIn() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Don&apos;t have an account?{' '}
                 <Link 
-                  href="/signup" 
+                  href="/sign-up" 
                   className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors"
                 >
                   Create one now

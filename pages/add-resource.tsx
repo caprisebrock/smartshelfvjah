@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Plus, BookOpen, Save, Sparkles, Search, Loader, ExternalLink } from 'lucide-react';
-import BackButton from '../components/BackButton';
-import { useUser } from '../lib/useUser';
-import { supabase } from '../lib/supabaseClient';
+import BackButton from '../modules/shared/components/BackButton';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { supabase } from '../modules/database/config/databaseConfig';
 
 const RESOURCE_TYPES = [
   { key: 'book', label: 'Book', emoji: '📚' },

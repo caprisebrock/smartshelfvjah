@@ -1,6 +1,6 @@
 import React from 'react';
 import Head from 'next/head';
-import CalendarView from '../components/CalendarView';
+import CalendarView from '../modules/habits/components/CalendarView';
 import Link from 'next/link';
 
 export default function CalendarPage() {

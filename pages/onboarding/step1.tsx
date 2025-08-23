@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
-import { useUser } from '../../lib/useUser'
-import { supabase } from '../../lib/supabaseClient'
+import { useUser } from '../../modules/auth/hooks/useUser'
+import { supabase } from '../../modules/database/config/databaseConfig'
 import EmojiPicker from 'emoji-picker-react'
 import { 
   User, 

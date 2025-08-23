@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useUser } from '../lib/useUser'
-import { supabase } from '../lib/supabaseClient'
-import ProfileForm from '../components/ProfileForm'
+import { useUser } from '../modules/auth/hooks/useUser'
+import { supabase } from '../modules/database/config/databaseConfig'
+import ProfileForm from '../modules/profile/components/ProfileForm'
 import { ArrowLeft, User, Mail, Calendar, Target, Crown, Sparkles, Edit3, CheckCircle2 } from 'lucide-react'
 
 interface UserProfile {

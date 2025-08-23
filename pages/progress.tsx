@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Head from 'next/head';
 import { TrendingUp, BarChart3 } from 'lucide-react';
-import ProgressChart from '../components/ProgressChart';
-import BackButton from '../components/BackButton';
-import { useHabits } from '../lib/HabitsContext';
-import { useUser } from '../lib/useUser';
-import { supabase } from '../lib/supabaseClient';
+import ProgressChart from '../modules/progress/components/ProgressChart';
+import BackButton from '../modules/shared/components/BackButton';
+import { useHabits } from '../modules/habits/context/HabitsContext';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { supabase } from '../modules/database/config/databaseConfig';
 
 interface LearningResource {
   id: string;

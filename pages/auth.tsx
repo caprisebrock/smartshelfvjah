@@ -1,7 +1,7 @@
 // pages/auth.tsx
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '../modules/database/config/databaseConfig'
 
 export default function AuthPage() {
   return (

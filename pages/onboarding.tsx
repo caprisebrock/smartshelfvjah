@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
-import { useUser } from '../lib/useUser'
+import { useUser } from '../modules/auth/hooks/useUser'
 
 export default function OnboardingWizard() {
   const router = useRouter()

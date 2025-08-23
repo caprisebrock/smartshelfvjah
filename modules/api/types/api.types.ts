@@ -1,0 +1,1 @@
+// EXTRACT AND CREATE TYPES FROM: pages/api/*.ts FILES 

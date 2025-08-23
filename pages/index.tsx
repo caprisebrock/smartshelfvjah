@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useHabits } from '../lib/HabitsContext';
-import { useUser } from '../lib/useUser';
-import { useProtectedRoute } from '../lib/useProtectedRoute';
-import { useOnboardingGuard } from '../lib/useOnboardingGuard';
+import { useHabits } from '../modules/habits/context/HabitsContext';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { useProtectedRoute } from '../modules/auth/hooks/useProtectedRoute';
+// Removed useOnboardingGuard - dashboard should not auto-redirect to onboarding
 import { Target, BookOpen, Sparkles, TrendingUp, Clock, Play, ArrowRight } from 'lucide-react';
-import MotivationalQuote from '../components/MotivationalQuote';
+import MotivationalQuote from '../modules/shared/components/MotivationalQuote';
+import SmartAssistantBanner from '../modules/ai-companion/components/SmartAssistantBanner';
+import { useSmartSuggestions } from '../modules/ai-companion/hooks/useSmartSuggestions';
 
 type ResourceType = 'Book' | 'Podcast' | 'Video' | 'Course' | 'Article';
 
@@ -35,10 +37,12 @@ function formatTimeAgo(dateStr: string) {
 }
 
 export default function Dashboard() {
-  const { user, loading: authLoading } = useOnboardingGuard();
+  const { user, loading: authLoading } = useUser();
+  useProtectedRoute(); // Protect the page but don't auto-redirect to onboarding
   const { state } = useHabits();
   const hasHabits = state.habits.length > 0;
   const router = useRouter();
+  const { currentSuggestion, dismissSuggestion } = useSmartSuggestions();
   
   // Check for first habit success
   useEffect(() => {
@@ -181,6 +185,14 @@ export default function Dashboard() {
               </div>
             </div>
           </header>
+
+          {/* Smart Assistant Banner */}
+          {currentSuggestion && (
+            <SmartAssistantBanner
+              suggestion={currentSuggestion}
+              onDismiss={() => dismissSuggestion(currentSuggestion.id)}
+            />
+          )}
 
           {/* Section 2: Motivation Quote */}
           <div className="mb-12 animate-fadeIn" style={{ animationDelay: '0.2s' }}>

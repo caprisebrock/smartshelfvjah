@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Play, Pause, Square, Bot, Sparkles, Clock, Target, BookOpen, Brain, Zap } from 'lucide-react';
-import BackButton from '../components/BackButton';
+import BackButton from '../modules/shared/components/BackButton';
 
 interface SessionResource {
   id: string;

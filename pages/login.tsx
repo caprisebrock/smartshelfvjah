@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { supabase } from '../lib/supabaseClient'
-import { useUser } from '../lib/useUser'
+import { supabase } from '../modules/database/config/databaseConfig'
+import { useUser } from '../modules/auth/hooks/useUser'
 import { Target, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react'
-import GoogleSignInButton from '../components/GoogleSignInButton'
+import GoogleSignInButton from '../modules/auth/components/GoogleSignInButton'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -181,7 +181,7 @@ export default function Login() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don&apos;t have an account?{' '}
-                <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+                <Link href="/sign-up" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
                   Sign up
                 </Link>
               </p>

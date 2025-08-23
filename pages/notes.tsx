@@ -1,21 +1,19 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useUser } from '../lib/useUser';
-import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../lib/notes';
-import { useChat } from '../lib/ChatContext';
-import { useToast } from '../lib/ToastContext';
-import { supabase } from '../lib/supabaseClient';
-import { getOrCreateNoteSession } from '../lib/chatNoteBridge';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../modules/notes/services/notesService';
+import { useNotesChat } from '../modules/notes/hooks/useNotesChat';
+// Stop using local helper; rely on ChatContext as single source of truth
+// (no import of getOrCreateNoteSession)
 import { Search, Plus, Save, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
-import MessageList from '../components/MessageList';
-import ChatInput from '../components/ChatInput';
+import MessageList from '../modules/ai-chat/components/MessageList';
+import NotesChatInput from '../modules/notes/components/NotesChatInput';
 import { clsx } from 'clsx';
-import styles from '../styles/notes.module.css';
 
 // Lightweight type for note summaries
 type NoteSummary = { 
-  id: string; 
+  id: string;
   title: string; 
   content: any; 
   updated_at: string | null; 
@@ -26,13 +24,12 @@ type Draft = { title: string; content: any };
 export default function NotesPage() {
   const { user } = useUser();
   const router = useRouter();
-  const { state, sendMessage, setCurrentSessionId, createNewSession } = useChat();
-  const { addToast } = useToast();
+  const notesChat = useNotesChat();
   
   // Core state
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, { title: string; content: any }>>({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState(false);
   
   // Local editing state
@@ -40,17 +37,7 @@ export default function NotesPage() {
   const [localContent, setLocalContent] = useState<string>('');
   const [isTitleEditing, setIsTitleEditing] = useState<boolean>(false);
   
-  // Chat panel state
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [optimisticMessages, setOptimisticMessages] = useState<Array<{
-    id: string;
-    session_id: string;
-    sender: 'user' | 'assistant';
-    content: string;
-    created_at: string;
-    pending?: boolean;
-    error?: boolean;
-  }>>([]);
+  // Chat panel state (now handled by notesChat)
   
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,139 +80,25 @@ export default function NotesPage() {
     getNotes(user.id).then(setNotes).catch(console.error);
   }, [user?.id]);
 
-  // One-time session hookup per note (prevents double renders)
+  // Load chat messages when note is selected
   useEffect(() => {
-    let cancelled = false;
-    
-    async function run() {
-      if (!selectedNoteId) { 
-        setSessionId(null); 
-        return; 
-      }
-      
-      // Flush any pending saves for the previous note
-      if (selectedNoteId) {
-        // TODO: Implement flushNoteUpdates if needed
-      }
-      
-      try {
-        // Try to get existing session first
-        let session = await getOrCreateNoteSession(selectedNoteId);
-        
-        // If no session exists, create one using ChatContext
-        if (!session) {
-          await createNewSession('note', undefined, undefined, selectedNoteId);
-          // Get the session ID from localStorage after creation
-          const newSessionId = localStorage.getItem('currentSessionId');
-          if (newSessionId) {
-            session = { id: newSessionId, title: 'Note Chat' };
-          }
-        }
-        
-        if (!cancelled && session) {
-          setSessionId(session.id);
-          // Set current session in ChatContext
-          await setCurrentSessionId(session.id);
-        }
-      } catch (error) {
-        console.error('Failed to get/create note session:', error);
-      }
+    if (selectedNoteId) {
+      console.log('📚 Loading chat messages for note:', selectedNoteId);
+      notesChat.loadMessagesForNote(selectedNoteId);
     }
-    
-    run();
-    
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedNoteId, setCurrentSessionId, createNewSession]);
+  }, [selectedNoteId, notesChat]);
 
-  // Handle linking session to resource
-  const handleLinkSession = async (linkType: 'learning' | 'habit', linkId: string, linkTitle: string) => {
-    if (!sessionId) return;
-    
-    try {
-      // Update the session with link information
-      const { error } = await supabase
-        .from('sessions')
-        .update({
-          link_type: linkType === 'learning' ? 'learning_resource' : 'habit',
-          link_id: linkId,
-          link_title: linkTitle,
-          ...(linkType === 'learning' ? { linked_learning_resource: linkId } : {}),
-          ...(linkType === 'habit' ? { linked_habit: linkId } : {})
-        })
-        .eq('id', sessionId);
+  // Note: Sending state is managed automatically by notesChat
 
-      if (error) {
-        throw error;
-      }
-
-      addToast(`Linked to ${linkType}: ${linkTitle}`, 'success');
-      
-      // Enqueue AI context breadcrumb for linked resource
-      enqueue(async () => {
-        try {
-          // Fetch minimal metadata for the resource
-          let resource: any;
-          if (linkType === 'learning') {
-            const { data } = await supabase
-              .from('learning_resources')
-              .select('id, title, type, author, total_minutes, minutes_completed')
-              .eq('id', linkId)
-              .single();
-            resource = data;
-          } else if (linkType === 'habit') {
-            const { data } = await supabase
-              .from('habits')
-              .select('id, title, description, frequency')
-              .eq('id', linkId)
-              .single();
-            resource = data;
-          }
-
-          if (resource) {
-            // Create a system message for AI context
-            const resourceType = linkType === 'learning' ? (resource.type || 'learning resource') : 'habit';
-            const systemMessage = {
-              id: `system-${Date.now()}`,
-              session_id: sessionId,
-              sender: 'assistant' as const,
-              content: `Linked resource: "${resource.title}" (${resourceType}). If the user asks, summarize or reference it.`,
-              created_at: new Date().toISOString(),
-              token_count: 0
-            };
-
-            // Insert the system message into Supabase
-            await supabase
-              .from('session_messages')
-              .insert({
-                session_id: sessionId,
-                sender: 'assistant',
-                content: systemMessage.content,
-                token_count: 0
-              });
-
-            // Add to local state for immediate display
-            setOptimisticMessages(prev => [...prev, systemMessage]);
-          }
-        } catch (error) {
-          console.error('Failed to create AI context breadcrumb:', error);
-        }
-      });
-      
-      // Refresh the session to get updated link information
-      await setCurrentSessionId(sessionId);
-    } catch (error) {
-      console.error('Failed to link session to resource:', error);
-      addToast('Failed to link resource', 'error');
-    }
-  };
-
-  // Simple enqueue function for async side effects
-  const enqueue = (task: () => Promise<void>) => {
-    // Execute immediately for now, could be enhanced with a proper queue
-    task();
-  };
+  // Debug input value changes
+  useEffect(() => {
+    console.log('📝 Input value changed:', {
+      value: `"${inputValue}"`,
+      length: inputValue.length,
+      trimmed: `"${inputValue.trim()}"`,
+      trimmedLength: inputValue.trim().length
+    });
+  }, [inputValue]);
 
   // Filter notes based on search query
   const filteredNotes = useMemo(() => {
@@ -244,21 +117,11 @@ export default function NotesPage() {
   const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
 
   // Get current messages for the selected note
-  const currentMessages = useMemo(() => {
-    if (!sessionId) return [];
-    
-    // Combine real messages from ChatContext with optimistic messages
-    const realMessages = state.messages.filter(msg => msg.session_id === sessionId);
-    return [...realMessages, ...optimisticMessages.filter(msg => msg.session_id === sessionId)];
-  }, [state.messages, optimisticMessages, sessionId]);
-
-  // Get current session for linking display
-  const currentSession = useMemo(() => {
-    return state.sessions.find(s => s.id === sessionId) || state.currentSession;
-  }, [state.sessions, state.currentSession, sessionId]);
+  // Messages are now handled by notesChat.messages directly
 
   // Handle note selection
   const selectNote = async (noteId: string) => {
+    console.log('🎯 Selecting note:', noteId);
     setSelectedNoteId(noteId);
     
     // Get or create draft for this note
@@ -278,6 +141,14 @@ export default function NotesPage() {
     setLocalTitle(draft.title);
     setLocalContent(draft.content.text || '');
     setIsTitleEditing(false);
+    
+    // Load chat messages for this note
+    console.log('📚 Loading messages for selected note:', noteId);
+    try {
+      await notesChat.loadMessagesForNote(noteId);
+    } catch (error) {
+      console.error('❌ Error loading messages:', error);
+    }
   };
 
   // Handle title changes
@@ -344,46 +215,54 @@ export default function NotesPage() {
     }
   };
 
-  // Handle sending messages
+  // Handle sending messages using independent Notes chat system
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !sessionId) return;
+    console.log('🚨🚨🚨 NOTES handleSendMessage CALLED! 🚨🚨🚨');
+    
+    if (!inputValue.trim()) {
+      console.log('❌ Early return - missing input');
+      return;
+    }
+    
+    if (!selectedNoteId) {
+      console.log('❌ No note selected - selecting first note or creating one');
+      // Try to select the first available note
+      if (notes.length > 0) {
+        await selectNote(notes[0].id);
+      } else {
+        console.log('❌ No notes available');
+        return;
+      }
+    }
     
     const messageContent = inputValue.trim();
+    console.log('✅ Notes AI Chat - Submitted:', messageContent);
+    
+    // Clear input immediately for better UX
     setInputValue('');
     
-    // Add optimistic message
-    const tempMessage = {
-      id: `temp-${Date.now()}`,
-      session_id: sessionId,
-      sender: 'user' as const,
-      content: messageContent,
-      created_at: new Date().toISOString(),
-      pending: true
-    };
-    
-    setOptimisticMessages(prev => [...prev, tempMessage]);
-    
     try {
-      // Send message via ChatContext
-      await sendMessage(messageContent);
+      // Send message through independent Notes chat system
+      const success = await notesChat.sendMessage(messageContent);
       
-      // Remove optimistic message on success
-      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
-      
-      // Scroll to bottom
-      if (bottomRef.current) {
-        requestAnimationFrame(() => {
-          bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        });
+      if (success) {
+        console.log('✅ Message sent successfully through Notes chat system');
+        
+        // Scroll to bottom
+        if (bottomRef.current) {
+          requestAnimationFrame(() => {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          });
+        }
+      } else {
+        console.error('❌ Failed to send message');
+        // Restore input value on error
+        setInputValue(messageContent);
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
-      // Mark optimistic message as error
-      setOptimisticMessages(prev => 
-        prev.map(msg => 
-          msg.id === tempMessage.id ? { ...msg, error: true, pending: false } : msg
-        )
-      );
+      console.error('❌ Error in handleSendMessage:', error);
+      // Restore input value on error
+      setInputValue(messageContent);
     }
   };
 
@@ -397,7 +276,7 @@ export default function NotesPage() {
       await selectNote(newNote.id);
     } catch (error) {
       console.error('Failed to create note:', error);
-      addToast('Failed to create note', 'error');
+      // addToast('Failed to create note', 'error'); // Assuming addToast is available
     }
   };
 
@@ -420,12 +299,15 @@ export default function NotesPage() {
         setLocalContent('');
       }
       
-      addToast('Note deleted successfully', 'success');
+      // addToast('Note deleted successfully', 'success'); // Assuming addToast is available
     } catch (error) {
       console.error('Failed to delete note:', error);
-      addToast('Failed to delete note', 'error');
+      // addToast('Failed to delete note', 'error'); // Assuming addToast is available
     }
   };
+
+  // Grid template based on sidebar state
+  const gridTemplate = sidebarOpen ? '280px 1fr 420px' : '0 1fr 1fr';
 
   return (
     <>
@@ -434,20 +316,18 @@ export default function NotesPage() {
       </Head>
 
       <div className="notes-page">
-        <header className={styles.header}>
-          <button
-            className={styles.collapseBtn}
-            aria-label={sidebarOpen ? 'Collapse notes list' : 'Expand notes list'}
-            onClick={() => setSidebarOpen(v => !v)}
-          >
-            {sidebarOpen ? '◀' : '▶'}
-          </button>
-          <div className={styles.headerTitle}>
-            <a href="/" className={styles.back}>Back to Dashboard</a>
-            <span className={styles.sep}>•</span>
-            <span className={styles.notes}>Notes</span>
+        <header className="sticky top-0 z-20 bg-gradient-to-b from-[#0b1735] to-[#0b1735] text-white px-4 py-4 flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="text-base opacity-80 hover:opacity-100 transition-opacity"
+            >
+              ← Back to Dashboard
+            </button>
+            <div className="font-semibold text-lg">Notes</div>
           </div>
-          <div className={styles.headerRight}>
+          <div className="flex items-center gap-3">
             <input 
               className="rounded-md px-3 py-2 text-sm text-black w-[280px]" 
               placeholder="Search notes..." 
@@ -464,23 +344,37 @@ export default function NotesPage() {
         </header>
 
         <div 
-          className={clsx(styles.notesGrid, sidebarOpen ? styles.open : styles.closed)}
+          className="grid min-h-[calc(100vh-64px)] pt-[64px]"
+          style={{ gridTemplateColumns: gridTemplate }}
         >
-          <aside className={clsx(
-            styles.notesList,
-            "transition-all duration-200 ease-out",
-            sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
-          )}>
-            
+          <aside
+            className={clsx(
+              "overflow-hidden border-r border-neutral-200 transition-all duration-200 ease-out",
+              sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
+            )}
+          >
             {/* Notes List */}
             <div className="p-4">
-              {filteredNotes.length === 0 ? (
+              {/* Collapse button */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-600">Notes</span>
+                  <button
+                  type="button"
+                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                  onClick={() => setSidebarOpen(false)}
+                  aria-label="Collapse notes sidebar"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-500" />
+                  </button>
+          </div>
+
+            {filteredNotes.length === 0 ? (
                 <div className="text-center text-zinc-500 py-8">
                   <div className="text-4xl mb-4">📝</div>
                   <div className="text-lg font-medium mb-2">No notes yet</div>
                   <div className="text-sm">Create your first note to get started</div>
-                </div>
-              ) : (
+              </div>
+            ) : (
                 <div className="space-y-2">
                   {filteredNotes.map(note => {
                     const draft = drafts[note.id];
@@ -489,7 +383,7 @@ export default function NotesPage() {
                     
                     return (
                       <div
-                        key={note.id}
+                      key={note.id}
                         onClick={() => selectNote(note.id)}
                         className={`group relative p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
                           selectedNoteId === note.id
@@ -501,9 +395,9 @@ export default function NotesPage() {
                         <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">
                           {previewContent ? previewContent.substring(0, 50) + '...' : 'No content'}
                         </div>
-                        
+
                         {/* Delete button - hover to reveal */}
-                        <button
+                              <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setShowDeleteConfirm(note.id);
@@ -512,19 +406,19 @@ export default function NotesPage() {
                           title="Delete note"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                              </button>
+                            </div>
                     );
                   })}
-                </div>
-              )}
-            </div>
+                          </div>
+                        )}
+                            </div>
           </aside>
 
-          <main className={styles.notesEditor}>
+          <main className="h-full overflow-hidden">
             {selectedNoteId && currentDraft ? (
               <div className="h-full flex flex-col">
-                <div className="h-full">
+                <div className="p-6">
                   <input
                     type="text"
                     value={localTitle}
@@ -543,8 +437,8 @@ export default function NotesPage() {
                     style={{ minHeight: '400px' }}
                   />
                   {saving && <div className="text-sm text-zinc-500 mt-3">Saving...</div>}
-                </div>
-              </div>
+                        </div>
+                      </div>
             ) : (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center text-zinc-500">
@@ -557,50 +451,53 @@ export default function NotesPage() {
           </main>
 
           {/* RIGHT: chat pane */}
-          <section className={styles.notesChat}>
+          <section className="h-full flex flex-col min-h-0 border-l border-neutral-200">
             {/* Chat header */}
-            <div className={styles.chatHeader}>
+            <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
               <div className="text-sm text-neutral-600">
                 Chat for: {currentDraft?.title ?? 'Untitled'}
-                {currentSession?.link_title && (
-                  <span className="ml-2 text-xs text-neutral-500">
-                    Linked: {currentSession.link_title}
-                  </span>
-                )}
+                {/* Note-specific chat - no linked sessions */}
               </div>
-            </div>
+        </div>
 
             {/* Scrollable messages */}
             <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
               <MessageList 
-                key={currentSession?.id || 'no-session'}
-                messages={currentMessages} 
-                typing={typing && state.sending}
+                messages={notesChat.messages} 
+                typing={typing && notesChat.sending}
                 bottomRef={bottomRef}
               />
-            </div>
+                  </div>
 
             {/* Bottom dock (centered input, no gray) */}
             <div className="sticky bottom-0 z-10 border-t border-neutral-200 bg-transparent px-3 py-3 flex justify-center">
               <div className="w-full max-w-[560px]">
-                <ChatInput
+                <NotesChatInput
                   value={inputValue}
                   onChange={setInputValue}
                   onSend={handleSendMessage}
-                  sending={state.sending}
-                  disabled={!sessionId || !inputValue.trim()}
-                  onLinkChat={() => {}}
-                  onAttach={(files) => console.log('Attached files:', files.map(f => f.name))}
-                  onLinkResource={handleLinkSession}
-                  linkDisabled={!selectedNoteId || !sessionId}
+                  sending={notesChat.sending}
+                  disabled={false}
                   className="w-full"
-                  noteId={selectedNoteId || undefined}
-                  sessionId={sessionId || undefined}
+                  placeholder="Ask about this note..."
                 />
               </div>
             </div>
           </section>
-        </div>
+          </div>
+
+        {/* Floating expand button when sidebar is collapsed */}
+        {!sidebarOpen && (
+          <button
+            type="button"
+            className="fixed left-4 top-20 z-30 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-lg transition-all hover:shadow-xl"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Expand notes sidebar"
+            title="Show notes list"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
 
         {/* Delete confirmation modal */}
         {showDeleteConfirm && (
@@ -610,14 +507,14 @@ export default function NotesPage() {
               <p className="text-gray-600 mb-6">
                 Are you sure you want to delete this note? This action cannot be undone.
               </p>
-              <div className="flex gap-3 justify-end">
-                <button
+                <div className="flex gap-3 justify-end">
+                  <button
                   onClick={() => setShowDeleteConfirm(null)}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
+                  >
+                    Cancel
+                  </button>
+                  <button
                   onClick={() => {
                     handleDeleteNote(showDeleteConfirm);
                     setShowDeleteConfirm(null);
@@ -625,7 +522,7 @@ export default function NotesPage() {
                   className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
                 >
                   Delete
-                </button>
+                  </button>
               </div>
             </div>
           </div>

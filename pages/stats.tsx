@@ -1,6 +1,6 @@
 import React from 'react';
 import Head from 'next/head';
-import HabitStats from '../components/HabitStats';
+import HabitStats from '../modules/progress/components/HabitStats';
 import Link from 'next/link';
 
 export default function StatsPage() {

@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useUser } from '../lib/useUser';
-import { useProtectedRoute } from '../lib/useProtectedRoute';
-import { useHabits } from '../lib/HabitsContext';
-import { supabase } from '../lib/supabaseClient';
-import Layout from '../components/Layout';
-import HabitCard from '../components/HabitCard';
-import BackButton from '../components/BackButton';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { useProtectedRoute } from '../modules/auth/hooks/useProtectedRoute';
+import { useHabits } from '../modules/habits/context/HabitsContext';
+import { supabase } from '../modules/database/config/databaseConfig';
+import Layout from '../modules/shared/components/Layout';
+import HabitCard from '../modules/habits/components/HabitCard';
+import BackButton from '../modules/shared/components/BackButton';
 import { Target, Plus, RefreshCw } from 'lucide-react';
 
 export default function HabitsPage() {

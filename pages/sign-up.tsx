@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { supabase } from '../lib/supabaseClient'
-import { createUserProfile } from '../lib/createUserProfile'
-import { useUser } from '../lib/useUser'
+import { supabase } from '../modules/database/config/databaseConfig'
+import { createUserProfile } from '../modules/auth/services/createUserProfile'
+import { useUser } from '../modules/auth/hooks/useUser'
 import { Target, Mail, Lock, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react'
 
 export default function SignUpPage() {

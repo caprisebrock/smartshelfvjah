@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
 import '../styles/globals.css';
 import '../styles/notes.css';
+import '../styles/notes-advanced.css';
 import { HabitsProvider } from '../modules/habits/context/HabitsContext';
 import { ThemeProvider } from '../modules/shared/context/ThemeContext';
 import { ToastProvider } from '../modules/shared/context/ToastContext';

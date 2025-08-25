@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { Plus, BookOpen, Save, Sparkles, Search, Loader, ExternalLink } from 'lucide-react';
 import BackButton from '../modules/shared/components/BackButton';
 import { useUser } from '../modules/auth/hooks/useUser';
+import { useToast } from '../modules/shared/context/ToastContext';
 import { supabase } from '../modules/database/config/databaseConfig';
 
 const RESOURCE_TYPES = [
@@ -34,6 +35,7 @@ interface GoogleBookResult {
 export default function AddResourcePage() {
   const router = useRouter();
   const { user } = useUser();
+  const { addToast } = useToast();
   const [form, setForm] = useState({
     emoji: '📚',
     type: 'book',
@@ -176,14 +178,14 @@ export default function AddResourcePage() {
       
       if (userError) {
         console.error("❌ [AddResource] Auth error:", userError);
-        alert("Authentication error. Please sign in again.");
+        addToast("Authentication error. Please sign in again.", "error");
         setSubmitting(false);
         return;
       }
       
       if (!user) {
         console.error("❌ [AddResource] User is not authenticated — redirecting to signin");
-        alert("You must be signed in to add resources.");
+        addToast("You must be signed in to add resources.", "error");
         setSubmitting(false);
         router.push('/signin');
         return;
@@ -198,7 +200,7 @@ export default function AddResourcePage() {
 
       if (appUserErr || !appUser) {
         console.error("APP_USER VALIDATION ERROR:", appUserErr);
-        alert("You need a profile to save a resource. Please complete onboarding.");
+        addToast("You need a profile to save a resource. Please complete onboarding.", "error");
         setSubmitting(false);
         return;
       }
@@ -228,18 +230,18 @@ export default function AddResourcePage() {
 
       if (insertError) {
         console.error("❌ Failed to insert learning resource:", insertError);
-        alert("Failed to save your learning resource. Please try again.");
+        addToast("Failed to save your learning resource. Please try again.", "error");
         setSubmitting(false);
         return;
       }
 
       console.log("✅ Learning resource saved successfully!");
-      alert("✅ Resource saved!");
+      addToast("✅ Resource saved successfully!", "success");
       router.push('/my-learning');
       
     } catch (err) {
       console.error('Error saving resource:', err);
-      alert('Failed to save resource. Please try again.');
+      addToast('Failed to save resource. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }

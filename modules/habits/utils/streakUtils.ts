@@ -34,16 +34,16 @@ export async function getHabitStreak(userId: string): Promise<StreakResult> {
     for (const habit of habits) {
       const { data: completions, error: completionsError } = await supabase
         .from('habit_completions')
-        .select('completed_date, completed')
+        .select('date, status')
         .eq('habit_id', habit.id)
-        .order('completed_date', { ascending: false });
+        .order('date', { ascending: false });
 
       if (completionsError || !completions) continue;
 
       // Transform to match calculateStreak interface
       const formattedCompletions = completions.map(c => ({
-        date: c.completed_date,
-        completed: c.completed
+        date: c.date,
+        completed: c.status === 'complete'
       }));
 
       const currentStreak = calculateStreak(formattedCompletions);

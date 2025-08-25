@@ -18,7 +18,7 @@ export default function App({ Component, pageProps }: AppProps) {
   const showSidebar = router.pathname === '/' || router.pathname === '/settings';
   
   // Pages that need to handle their own layout and scrolling
-  const customLayoutPages = ['/plan/[id]', '/plans'];
+  const customLayoutPages = ['/plan/[id]', '/plans', '/my-learning/[id]'];
   const needsCustomLayout = customLayoutPages.some(pattern => 
     pattern === router.pathname || 
     (pattern.includes('[id]') && router.pathname.startsWith(pattern.replace('/[id]', '/')))

@@ -29,6 +29,44 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
   const [isCreating, setIsCreating] = useState(false);
   const [milestones, setMilestones] = useState<string>('');
 
+  // Function to parse milestones text into structured format for better display
+  const parseMilestones = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    const days: { title: string; tasks: string[] }[] = [];
+    let currentDay: { title: string; tasks: string[] } | null = null;
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      // Check if this is a day header (e.g., "Day 1:", "**Day 1**", etc.)
+      const dayMatch = trimmed.match(/^(?:\*{0,2})?(?:Day\s+)?(\d+)[\s:]*(?:\*{0,2})?/i);
+      
+      if (dayMatch) {
+        // Save previous day if it exists
+        if (currentDay) {
+          days.push(currentDay);
+        }
+        // Start new day
+        currentDay = {
+          title: `Day ${dayMatch[1]}`,
+          tasks: []
+        };
+      } else if (currentDay && trimmed) {
+        // Add task to current day (remove bullets and clean up)
+        const cleanTask = trimmed.replace(/^[-•*]\s*/, '').trim();
+        if (cleanTask) {
+          currentDay.tasks.push(cleanTask);
+        }
+      }
+    });
+
+    // Add the last day
+    if (currentDay) {
+      days.push(currentDay);
+    }
+
+    return days;
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setMilestones('');
@@ -122,7 +160,7 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
@@ -138,7 +176,8 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6 space-y-6">
           {currentStep === 'form' ? (
             <>
               {/* Description */}
@@ -218,28 +257,47 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
             <>
               {/* Preview Step */}
               <div className="space-y-4">
+                {/* Back button at top */}
+                <button
+                  onClick={handleBack}
+                  className="text-sm text-blue-500 underline mb-4 flex items-center gap-1"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  ← Back to Form
+                </button>
+
                 <div className="border-t pt-4">
                   <h3 className="text-lg font-medium text-gray-900 mb-3">Your Learning Plan</h3>
-                  <div className="bg-blue-50 rounded-lg p-4 max-h-[60vh] overflow-y-auto">
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {milestones}
-                    </div>
+                  <div className="max-h-screen overflow-y-auto px-4 pt-4 pb-20">
+                    {parseMilestones(milestones).length > 0 ? (
+                      <div className="space-y-4">
+                        {parseMilestones(milestones).map((day, index) => (
+                          <div key={index} className="mb-6 p-4 bg-white shadow-sm rounded-md border border-gray-200">
+                            <h3 className="font-semibold mb-2 text-gray-900">{day.title}</h3>
+                            <ul className="list-disc list-inside text-sm text-gray-800 space-y-1">
+                              {day.tasks.map((task, taskIndex) => (
+                                <li key={taskIndex}>{task}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                          {milestones}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleBack}
-                    className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back
-                  </button>
+                <div className="mt-10 text-center">
                   <button
                     onClick={handleCreatePlan}
                     disabled={isCreating}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                   >
                     {isCreating ? (
                       <>
@@ -247,13 +305,14 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
                         Creating Plan...
                       </>
                     ) : (
-                      'Create Plan'
+                      'Save Learning Plan'
                     )}
                   </button>
                 </div>
               </div>
             </>
           )}
+          </div>
         </div>
       </div>
     </div>

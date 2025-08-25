@@ -29,6 +29,20 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
   const [isCreating, setIsCreating] = useState(false);
   const [milestones, setMilestones] = useState<string>('');
 
+  // Prevent background scrolling when modal is open
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup function to restore scrolling when component unmounts
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   // Function to parse milestones text into structured format for better display
   const parseMilestones = (text: string) => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -268,7 +282,7 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
 
                 <div className="border-t pt-4">
                   <h3 className="text-lg font-medium text-gray-900 mb-3">Your Learning Plan</h3>
-                  <div className="max-h-screen overflow-y-auto px-4 pt-4 pb-20">
+                  <div className="px-4 pt-4 pb-4">
                     {parseMilestones(milestones).length > 0 ? (
                       <div className="space-y-4">
                         {parseMilestones(milestones).map((day, index) => (
@@ -289,6 +303,11 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
                         </div>
                       </div>
                     )}
+                    
+                    {/* Debug content to test modal scrolling */}
+                    <div className="mt-8 p-4 bg-purple-50 rounded text-sm text-purple-800">
+                      🔧 Debug: Modal scroll test. If you can see this message, modal scrolling is working! Try scrolling within this modal.
+                    </div>
                   </div>
                 </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { Plus, BookOpen, Save, Sparkles, Search, Loader, ExternalLink } from 'lucide-react';
 import BackButton from '../modules/shared/components/BackButton';
@@ -343,9 +344,11 @@ export default function AddResourcePage() {
                           >
                             <div className="flex gap-3">
                               {book.imageLinks?.thumbnail && (
-                                <img
+                                <Image
                                   src={book.imageLinks.thumbnail}
                                   alt={book.title}
+                                  width={48}
+                                  height={64}
                                   className="w-12 h-16 object-cover rounded"
                                 />
                               )}

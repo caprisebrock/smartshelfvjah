@@ -264,7 +264,7 @@ export default function MyLearningPage() {
                   <TrendingUp className="w-5 h-5 text-emerald-600" />
                   <span className="text-sm font-medium text-gray-600">Smart Insight</span>
                 </div>
-                <div className="text-sm text-gray-700">You're 42% done with your goal this month!</div>
+                <div className="text-sm text-gray-700">You&apos;re 42% done with your goal this month!</div>
               </div>
             </div>
           </div>

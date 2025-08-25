@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -19,7 +19,7 @@ export default function HabitsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Refresh habits data from database
-  const refreshHabits = async () => {
+  const refreshHabits = useCallback(async () => {
     if (!user?.id) return;
     
     setLoading(true);
@@ -58,14 +58,14 @@ export default function HabitsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, dispatch]);
 
   // Load habits when component mounts or user changes
   useEffect(() => {
     if (user?.id) {
       refreshHabits();
     }
-  }, [user?.id]);
+  }, [user?.id, refreshHabits]);
 
   // Handle success message from onboarding
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function HabitsPage() {
         router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
       }, 1000);
     }
-  }, [router.query]);
+  }, [router.query, refreshHabits, router]);
 
   if (authLoading) {
     return (

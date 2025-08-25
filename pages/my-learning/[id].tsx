@@ -159,7 +159,7 @@ export default function LearningResourceDetailPage() {
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📚</div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">Resource Not Found</h2>
-              <p className="text-gray-600 mb-6">The resource you're looking for doesn't exist or you don't have permission to view it.</p>
+              <p className="text-gray-600 mb-6">The resource you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it.</p>
               <button
                 onClick={() => router.push('/my-learning')}
                 className="flex items-center gap-2 text-blue-500 hover:underline mx-auto"

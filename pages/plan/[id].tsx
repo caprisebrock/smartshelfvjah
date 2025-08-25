@@ -164,6 +164,12 @@ export default function LearningPlanPage() {
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-gray-900">Your Learning Plan</h2>
             
+            {/* Debug info to test scrolling */}
+            <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
+              Debug: This page should be scrollable. If you see this message and can scroll to see more content below, scrolling is working.
+              {plan.milestones && ` (${plan.milestones.length} days to display)`}
+            </div>
+            
             {plan.milestones && plan.milestones.length > 0 ? (
               <div className="space-y-6">
                 {plan.milestones.map((milestone, index) => (

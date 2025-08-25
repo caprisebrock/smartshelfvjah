@@ -54,8 +54,8 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-y-auto bg-gray-50">
-      <div className="max-w-4xl mx-auto p-6 w-full">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto p-6">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Link href="/my-learning" className="flex items-center text-blue-600 hover:underline">
@@ -133,6 +133,10 @@ export default function PlansPage() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                      {/* Debug: Add extra content to test scrolling */}
+                      <div className="mt-8 p-4 bg-blue-50 rounded text-sm text-blue-800">
+                        🔧 Debug: If you can see this message, scrolling is working! This content should be at the bottom of the plan.
                       </div>
                     </div>
                   )}

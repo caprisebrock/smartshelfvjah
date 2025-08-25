@@ -17,6 +17,13 @@ export default function App({ Component, pageProps }: AppProps) {
   // Sidebar only on dashboard and settings (AI Chat has its own layout)
   const showSidebar = router.pathname === '/' || router.pathname === '/settings';
   
+  // Pages that need to handle their own layout and scrolling
+  const customLayoutPages = ['/plan/[id]', '/plans'];
+  const needsCustomLayout = customLayoutPages.some(pattern => 
+    pattern === router.pathname || 
+    (pattern.includes('[id]') && router.pathname.startsWith(pattern.replace('/[id]', '/')))
+  );
+  
   // Remove auth clearing on unload to persist sessions properly
   // useEffect(() => {
   //   // Auth clearing removed to prevent sign-in loops
@@ -28,9 +35,13 @@ export default function App({ Component, pageProps }: AppProps) {
         <ChatProvider>
           <HabitsProvider>
             <AuthWrapper>
-              <Layout showSidebar={showSidebar}>
+              {needsCustomLayout ? (
                 <Component {...pageProps} />
-              </Layout>
+              ) : (
+                <Layout showSidebar={showSidebar}>
+                  <Component {...pageProps} />
+                </Layout>
+              )}
               <Toast />
             </AuthWrapper>
           </HabitsProvider>

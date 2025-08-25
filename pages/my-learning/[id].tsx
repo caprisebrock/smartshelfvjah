@@ -6,7 +6,7 @@ import { useUser } from '../../modules/auth/hooks/useUser';
 import { useToast } from '../../modules/shared/context/ToastContext';
 import { getLearningResourceById, deleteLearningResource, LearningResource } from '../../modules/learning-resources/api/getLearningResourceById';
 import { supabase } from '../../modules/database/config/databaseConfig';
-import MilestoneGeneratorModal from '../../modules/ai-chat/components/MilestoneGeneratorModal';
+
 
 export default function LearningResourceDetailPage() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export default function LearningResourceDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [progressToAdd, setProgressToAdd] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [showMilestoneModal, setShowMilestoneModal] = useState(false);
+
 
   useEffect(() => {
     const loadResource = async () => {
@@ -238,13 +238,7 @@ export default function LearningResourceDetailPage() {
                 </div>
               </div>
 
-              {/* Generate Milestones Button */}
-              <button
-                onClick={() => setShowMilestoneModal(true)}
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 mb-4"
-              >
-                🧠 Generate Milestones
-              </button>
+
             </div>
 
             {resource.category_tags?.length > 0 && (
@@ -304,14 +298,7 @@ export default function LearningResourceDetailPage() {
           </div>
         </main>
 
-        {/* Milestone Generator Modal */}
-        {resource && (
-          <MilestoneGeneratorModal
-            isOpen={showMilestoneModal}
-            onClose={() => setShowMilestoneModal(false)}
-            resource={resource}
-          />
-        )}
+
       </div>
     </>
   );

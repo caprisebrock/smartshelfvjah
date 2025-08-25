@@ -72,41 +72,7 @@ export default async function handler(
     console.log('🔍 Mode:', mode);
     console.log('💬 Single message:', message);
 
-    // Handle milestone mode specifically
-    if (mode === 'milestone' && message) {
-      console.log('🎯 Processing milestone generation request');
-      
-      try {
-        const chatCompletion = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a learning coach. Create detailed, actionable daily milestones for learning resources. Focus on specific time-based goals and practical steps. Format your response as a bullet-point list with clear daily objectives.'
-            },
-            {
-              role: 'user',
-              content: message
-            }
-          ],
-          max_tokens: 800,
-          temperature: 0.7,
-        });
 
-        const content = chatCompletion.choices[0]?.message?.content || 'No milestone plan generated.';
-        console.log('✅ Milestone generation successful');
-        
-        return res.status(200).json({
-          response: content
-        });
-      } catch (error) {
-        console.error('❌ Milestone generation error:', error);
-        return res.status(500).json({
-          error: 'Failed to generate milestones',
-          detail: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }
 
     // Original chat mode validation
     if (!messages || !Array.isArray(messages)) {

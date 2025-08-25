@@ -1,525 +1,314 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { Plus, Clock, BookOpen, Target, Edit, Trash2, FileText } from 'lucide-react';
 import { useUser } from '../modules/auth/hooks/useUser';
-import { Note, getNotes, createNote, getNoteById, updateNoteFast, deleteNoteById, quickCreateNote, flushNoteUpdates } from '../modules/notes/services/notesService';
-import { useNotesChat } from '../modules/notes/hooks/useNotesChat';
-// Stop using local helper; rely on ChatContext as single source of truth
-// (no import of getOrCreateNoteSession)
-import { Search, Plus, Save, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
-import MessageList from '../modules/ai-chat/components/MessageList';
-import NotesChatInput from '../modules/notes/components/NotesChatInput';
-import { clsx } from 'clsx';
+import { useToast } from '../modules/shared/context/ToastContext';
+import { supabase } from '../modules/database/config/databaseConfig';
 
-// Lightweight type for note summaries
-type NoteSummary = { 
+interface Note {
   id: string;
+  user_id: string;
   title: string; 
   content: any; 
-  updated_at: string | null; 
-};
-
-type Draft = { title: string; content: any };
+  linked_resource_id?: string | null;
+  linked_habit_id?: string | null;
+  tags?: string[] | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  resource_title?: string;
+  resource_emoji?: string;
+  habit_title?: string;
+  habit_emoji?: string;
+}
 
 export default function NotesPage() {
   const { user } = useUser();
+  const { addToast } = useToast();
   const router = useRouter();
-  const notesChat = useNotesChat();
-  
-  // Core state
-  const [notes, setNotes] = useState<NoteSummary[]>([]);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [saving, setSaving] = useState(false);
-  
-  // Local editing state
-  const [localTitle, setLocalTitle] = useState<string>('');
-  const [localContent, setLocalContent] = useState<string>('');
-  const [isTitleEditing, setIsTitleEditing] = useState<boolean>(false);
-  
-  // Chat panel state (now handled by notesChat)
-  
-  // UI state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [inputValue, setInputValue] = useState('');
-  const [typing, setTyping] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // Refs
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  // Simple debounce utility
-  const debounce = <T extends (...args: any[]) => void>(fn: T, ms = 700) => {
-    let t: any;
-    return (...args: Parameters<T>) => {
-      clearTimeout(t);
-      t = setTimeout(() => fn(...args), ms);
-    };
-  };
-
-  // Debounced search
-  const debouncedSearch = useMemo(() => debounce((query: string) => {
-    setSearchQuery(query);
-  }, 200), []);
-
-  // Debounced save function
-  const saveSelected = useMemo(() => debounce(async (id: string, draft: Draft) => {
-    try {
-      setSaving(true);
-      await updateNoteFast(id, { title: draft.title, content: draft.content });
-    } finally {
-      setSaving(false);
-    }
-  }, 700), []);
-
-  // Load notes
   useEffect(() => {
-    if (!user?.id) return;
-    getNotes(user.id).then(setNotes).catch(console.error);
+    if (user?.id) {
+      loadNotes();
+    }
   }, [user?.id]);
 
-  // Load chat messages when note is selected
-  useEffect(() => {
-    if (selectedNoteId) {
-      console.log('📚 Loading chat messages for note:', selectedNoteId);
-      notesChat.loadMessagesForNote(selectedNoteId);
-    }
-  }, [selectedNoteId, notesChat]);
-
-  // Note: Sending state is managed automatically by notesChat
-
-  // Debug input value changes
-  useEffect(() => {
-    console.log('📝 Input value changed:', {
-      value: `"${inputValue}"`,
-      length: inputValue.length,
-      trimmed: `"${inputValue.trim()}"`,
-      trimmedLength: inputValue.trim().length
-    });
-  }, [inputValue]);
-
-  // Filter notes based on search query
-  const filteredNotes = useMemo(() => {
-    if (!searchQuery.trim()) return notes;
-    
-    return notes.filter(note => {
-      const title = (note.title || 'Untitled').toLowerCase();
-      const content = JSON.stringify(note.content).toLowerCase();
-      const query = searchQuery.toLowerCase();
-      
-      return title.includes(query) || content.includes(query);
-    });
-  }, [notes, searchQuery]);
-
-  // Get current draft
-  const currentDraft = selectedNoteId ? drafts[selectedNoteId] : null;
-
-  // Get current messages for the selected note
-  // Messages are now handled by notesChat.messages directly
-
-  // Handle note selection
-  const selectNote = async (noteId: string) => {
-    console.log('🎯 Selecting note:', noteId);
-    setSelectedNoteId(noteId);
-    
-    // Get or create draft for this note
-    if (!drafts[noteId]) {
-      const note = notes.find(n => n.id === noteId) || await getNoteById(noteId);
-      setDrafts(prev => ({
-        ...prev,
-        [noteId]: {
-          title: note.title || 'Untitled',
-          content: note.content || { type: 'plain', text: '' }
-        }
-      }));
-    }
-    
-    // Set local editing state
-    const draft = drafts[noteId] || { title: 'Untitled', content: { type: 'plain', text: '' } };
-    setLocalTitle(draft.title);
-    setLocalContent(draft.content.text || '');
-    setIsTitleEditing(false);
-    
-    // Load chat messages for this note
-    console.log('📚 Loading messages for selected note:', noteId);
-    try {
-      await notesChat.loadMessagesForNote(noteId);
-    } catch (error) {
-      console.error('❌ Error loading messages:', error);
-    }
-  };
-
-  // Handle title changes
-  const handleTitleChange = (newTitle: string) => {
-    setLocalTitle(newTitle);
-    if (selectedNoteId) {
-      setDrafts(prev => ({
-        ...prev,
-        [selectedNoteId]: {
-          ...prev[selectedNoteId],
-          title: newTitle
-        }
-      }));
-      saveSelected(selectedNoteId, {
-        title: newTitle,
-        content: drafts[selectedNoteId]?.content || {}
-      });
-    }
-  };
-
-  // Handle title blur (save on blur)
-  const handleTitleBlur = () => {
-    setIsTitleEditing(false);
-    if (selectedNoteId && localTitle.trim() !== drafts[selectedNoteId]?.title) {
-      const finalTitle = localTitle.trim() || 'Untitled';
-      setLocalTitle(finalTitle);
-      setDrafts(prev => ({
-        ...prev,
-        [selectedNoteId]: {
-          ...prev[selectedNoteId],
-          title: finalTitle
-        }
-      }));
-      saveSelected(selectedNoteId, {
-        title: finalTitle,
-        content: drafts[selectedNoteId]?.content || {}
-      });
-    }
-  };
-
-  // Handle title key press (save on Enter)
-  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.currentTarget.blur();
-    }
-  };
-
-  // Handle content changes
-  const handleContentChange = (newContent: any) => {
-    setLocalContent(newContent.text || '');
-    if (selectedNoteId) {
-      setDrafts(prev => ({
-        ...prev,
-        [selectedNoteId]: {
-          ...prev[selectedNoteId],
-          content: newContent
-        }
-      }));
-      saveSelected(selectedNoteId, {
-        title: drafts[selectedNoteId]?.title || 'Untitled',
-        content: newContent
-      });
-    }
-  };
-
-  // Handle sending messages using independent Notes chat system
-  const handleSendMessage = async () => {
-    console.log('🚨🚨🚨 NOTES handleSendMessage CALLED! 🚨🚨🚨');
-    
-    if (!inputValue.trim()) {
-      console.log('❌ Early return - missing input');
-      return;
-    }
-    
-    if (!selectedNoteId) {
-      console.log('❌ No note selected - selecting first note or creating one');
-      // Try to select the first available note
-      if (notes.length > 0) {
-        await selectNote(notes[0].id);
-      } else {
-        console.log('❌ No notes available');
-        return;
-      }
-    }
-    
-    const messageContent = inputValue.trim();
-    console.log('✅ Notes AI Chat - Submitted:', messageContent);
-    
-    // Clear input immediately for better UX
-    setInputValue('');
-    
-    try {
-      // Send message through independent Notes chat system
-      const success = await notesChat.sendMessage(messageContent);
-      
-      if (success) {
-        console.log('✅ Message sent successfully through Notes chat system');
-        
-        // Scroll to bottom
-        if (bottomRef.current) {
-          requestAnimationFrame(() => {
-            bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          });
-        }
-      } else {
-        console.error('❌ Failed to send message');
-        // Restore input value on error
-        setInputValue(messageContent);
-      }
-    } catch (error) {
-      console.error('❌ Error in handleSendMessage:', error);
-      // Restore input value on error
-      setInputValue(messageContent);
-    }
-  };
-
-  // Handle creating new note
-  const handleNewNote = async () => {
+  const loadNotes = async () => {
     if (!user?.id) return;
     
     try {
-      const newNote = await quickCreateNote(user.id);
-      setNotes(prev => [newNote, ...prev]);
-      await selectNote(newNote.id);
-    } catch (error) {
-      console.error('Failed to create note:', error);
-      // addToast('Failed to create note', 'error'); // Assuming addToast is available
-    }
-  };
-
-  // Handle deleting note
-  const handleDeleteNote = async (noteId: string) => {
-    try {
-      await deleteNoteById(noteId);
-      setNotes(prev => prev.filter(n => n.id !== noteId));
+      setLoading(true);
       
-      // Clean up drafts
-      setDrafts(prev => {
-        const { [noteId]: _, ...rest } = prev;
-        return rest;
+      // Query notes with joined resource and habit data
+      const { data, error } = await supabase
+        .from('notes')
+        .select(`
+          id,
+          user_id,
+          title,
+          content,
+          linked_resource_id,
+          linked_habit_id,
+          tags,
+          created_at,
+          updated_at,
+          learning_resources:linked_resource_id (
+            title,
+            emoji
+          ),
+          habits:linked_habit_id (
+            title,
+            emoji
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform the joined data
+      const transformedNotes = (data || []).map(note => {
+        const resources = note.learning_resources as any;
+        const habits = note.habits as any;
+        return {
+          ...note,
+          resource_title: resources?.title,
+          resource_emoji: resources?.emoji,
+          habit_title: habits?.title,
+          habit_emoji: habits?.emoji,
+        };
       });
-      
-      // Clear selection if this was the selected note
-      if (selectedNoteId === noteId) {
-        setSelectedNoteId(null);
-        setLocalTitle('');
-        setLocalContent('');
-      }
-      
-      // addToast('Note deleted successfully', 'success'); // Assuming addToast is available
+
+      setNotes(transformedNotes);
     } catch (error) {
-      console.error('Failed to delete note:', error);
-      // addToast('Failed to delete note', 'error'); // Assuming addToast is available
+      console.error('Error loading notes:', error);
+      addToast('Failed to load notes', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Grid template based on sidebar state
-  const gridTemplate = sidebarOpen ? '280px 1fr 420px' : '0 1fr 1fr';
+  const deleteNote = async (noteId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+
+      setNotes(prev => prev.filter(note => note.id !== noteId));
+      addToast('Note deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      addToast('Failed to delete note', 'error');
+    } finally {
+      setDeleteConfirm(null);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getContentPreview = (content: any) => {
+    if (!content) return 'No content';
+    
+    // Handle different content formats
+    if (typeof content === 'string') {
+      return content.substring(0, 150) + (content.length > 150 ? '...' : '');
+    }
+    
+    // Handle TipTap/rich text JSON format
+    if (content.type === 'doc' && content.content) {
+      const textContent = extractTextFromTipTap(content);
+      return textContent.substring(0, 150) + (textContent.length > 150 ? '...' : '');
+    }
+    
+    return 'Rich content';
+  };
+
+  const extractTextFromTipTap = (doc: any): string => {
+    if (!doc || !doc.content) return '';
+    
+    let text = '';
+    for (const block of doc.content) {
+      if (block.content) {
+        for (const inline of block.content) {
+          if (inline.text) {
+            text += inline.text + ' ';
+          }
+        }
+      }
+    }
+    return text.trim();
+  };
+
+  if (loading) {
+    return (
+      <>
+        <Head>
+          <title>Notes - SmartShelf</title>
+        </Head>
+        <div className="min-h-screen bg-gray-50">
+          <main className="p-6 max-w-4xl mx-auto">
+            <div className="animate-pulse">
+              <div className="h-8 bg-gray-200 rounded w-48 mb-6"></div>
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-white p-6 rounded-lg shadow-sm border">
+                    <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </main>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <Head>
-        <title>Notes - SmartShelf</title>
+        <title>My Notes - SmartShelf</title>
+        <meta name="description" content="View and manage your learning notes" />
       </Head>
-
-      <div className="notes-page">
-        <header className="sticky top-0 z-20 bg-gradient-to-b from-[#0b1735] to-[#0b1735] text-white px-4 py-4 flex items-center justify-between shadow-lg">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.push('/')}
-              className="text-base opacity-80 hover:opacity-100 transition-opacity"
+      <div className="min-h-screen bg-gray-50">
+        <main className="p-6 max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">My Notes</h1>
+            <Link
+              href="/notes/new"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              ← Back to Dashboard
-            </button>
-            <div className="font-semibold text-lg">Notes</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <input 
-              className="rounded-md px-3 py-2 text-sm text-black w-[280px]" 
-              placeholder="Search notes..." 
-              value={searchQuery}
-              onChange={(e) => debouncedSearch(e.target.value)}
-            />
-            <button 
-              className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 transition-colors" 
-              onClick={handleNewNote}
-            >
-              + New Note
-            </button>
-          </div>
-        </header>
-
-        <div 
-          className="grid min-h-[calc(100vh-64px)] pt-[64px]"
-          style={{ gridTemplateColumns: gridTemplate }}
-        >
-          <aside
-            className={clsx(
-              "overflow-hidden border-r border-neutral-200 transition-all duration-200 ease-out",
-              sidebarOpen ? "w-[280px] opacity-100" : "w-0 opacity-0 pointer-events-none"
-            )}
-          >
-            {/* Notes List */}
-            <div className="p-4">
-              {/* Collapse button */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-gray-600">Notes</span>
-                  <button
-                  type="button"
-                  className="p-1 hover:bg-gray-100 rounded transition-colors"
-                  onClick={() => setSidebarOpen(false)}
-                  aria-label="Collapse notes sidebar"
-                >
-                  <ChevronLeft className="w-4 h-4 text-gray-500" />
-                  </button>
+              <Plus className="w-5 h-5" />
+              New Note
+            </Link>
           </div>
 
-            {filteredNotes.length === 0 ? (
-                <div className="text-center text-zinc-500 py-8">
-                  <div className="text-4xl mb-4">📝</div>
-                  <div className="text-lg font-medium mb-2">No notes yet</div>
-                  <div className="text-sm">Create your first note to get started</div>
+          {/* Notes List */}
+          {notes.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-600 mb-2">No notes yet</h2>
+              <p className="text-gray-500 mb-6">Add your first insight and start building your knowledge base!</p>
+              <Link
+                href="/notes/new"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Create First Note
+              </Link>
+          </div>
+          ) : (
+            <div className="space-y-4">
+              {notes.map((note) => (
+                <div key={note.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      {/* Note Title */}
+                      <Link href={`/notes/${note.id}`}>
+                        <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 cursor-pointer truncate">
+                          {note.title || 'Untitled'}
+                        </h3>
+                      </Link>
+                      
+                      {/* Content Preview */}
+                      <p className="text-gray-600 mt-2 line-clamp-2">
+                        {getContentPreview(note.content)}
+                      </p>
+
+                      {/* Linked Resource/Habit */}
+                      {(note.resource_title || note.habit_title) && (
+                        <div className="flex items-center gap-2 mt-3">
+                          {note.resource_title && (
+                            <div className="flex items-center gap-1 text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                              <BookOpen className="w-3 h-3" />
+                              <span>{note.resource_emoji} {note.resource_title}</span>
+                            </div>
+                          )}
+                          {note.habit_title && (
+                            <div className="flex items-center gap-1 text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
+                              <Target className="w-3 h-3" />
+                              <span>{note.habit_emoji} {note.habit_title}</span>
+          </div>
+                          )}
               </div>
-            ) : (
-                <div className="space-y-2">
-                  {filteredNotes.map(note => {
-                    const draft = drafts[note.id];
-                    const previewTitle = draft?.title ?? note.title;
-                    const previewContent = draft?.content?.text ?? note.content?.text;
-                    
-                    return (
-                      <div
-                      key={note.id}
-                        onClick={() => selectNote(note.id)}
-                        className={`group relative p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
-                          selectedNoteId === note.id
-                            ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20'
-                            : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
-                        }`}
-                      >
-                        <div className="font-medium truncate">{previewTitle || 'Untitled'}</div>
-                        <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 truncate">
-                          {previewContent ? previewContent.substring(0, 50) + '...' : 'No content'}
+                      )}
+
+                      {/* Tags */}
+                      {note.tags && note.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {note.tags.map((tag, index) => (
+                            <span key={index} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Timestamp */}
+                      <div className="flex items-center gap-1 text-sm text-gray-500 mt-3">
+                        <Clock className="w-3 h-3" />
+                        <span>{formatDate(note.updated_at)}</span>
+                      </div>
                         </div>
 
-                        {/* Delete button - hover to reveal */}
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 ml-4">
+                      <Link
+                        href={`/notes/${note.id}/edit`}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Edit note"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Link>
                               <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowDeleteConfirm(note.id);
-                          }}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500 hover:text-red-700"
+                        onClick={() => setDeleteConfirm(note.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                           title="Delete note"
                         >
                           <Trash2 className="w-4 h-4" />
                               </button>
-                            </div>
-                    );
-                  })}
-                          </div>
-                        )}
-                            </div>
-          </aside>
-
-          <main className="h-full overflow-hidden">
-            {selectedNoteId && currentDraft ? (
-              <div className="h-full flex flex-col">
-                <div className="p-6">
-                  <input
-                    type="text"
-                    value={localTitle}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    onBlur={handleTitleBlur}
-                    onKeyDown={handleTitleKeyDown}
-                    className="w-full text-2xl font-medium bg-transparent border-none outline-none mb-6"
-                    placeholder="Untitled"
-                    onFocus={() => setIsTitleEditing(true)}
-                  />
-                  <textarea
-                    value={localContent}
-                    onChange={(e) => handleContentChange({ type: 'plain', text: e.target.value })}
-                    className="w-full flex-1 p-4 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 resize-none"
-                    placeholder="Start writing your note..."
-                    style={{ minHeight: '400px' }}
-                  />
-                  {saving && <div className="text-sm text-zinc-500 mt-3">Saving...</div>}
                         </div>
                       </div>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center text-zinc-500">
-                  <div className="text-4xl mb-4">📝</div>
-                  <div className="text-lg font-medium mb-2">Select a note to start</div>
-                  <div className="text-sm">Choose a note from the left or create a new one</div>
                 </div>
+              ))}
               </div>
             )}
           </main>
 
-          {/* RIGHT: chat pane */}
-          <section className="h-full flex flex-col min-h-0 border-l border-neutral-200">
-            {/* Chat header */}
-            <div className="px-3 py-2 border-b border-neutral-200 bg-transparent">
-              <div className="text-sm text-neutral-600">
-                Chat for: {currentDraft?.title ?? 'Untitled'}
-                {/* Note-specific chat - no linked sessions */}
-              </div>
-        </div>
-
-            {/* Scrollable messages */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
-              <MessageList 
-                messages={notesChat.messages} 
-                typing={typing && notesChat.sending}
-                bottomRef={bottomRef}
-              />
-                  </div>
-
-            {/* Bottom dock (centered input, no gray) */}
-            <div className="sticky bottom-0 z-10 border-t border-neutral-200 bg-transparent px-3 py-3 flex justify-center">
-              <div className="w-full max-w-[560px]">
-                <NotesChatInput
-                  value={inputValue}
-                  onChange={setInputValue}
-                  onSend={handleSendMessage}
-                  sending={notesChat.sending}
-                  disabled={false}
-                  className="w-full"
-                  placeholder="Ask about this note..."
-                />
-              </div>
-            </div>
-          </section>
-          </div>
-
-        {/* Floating expand button when sidebar is collapsed */}
-        {!sidebarOpen && (
-          <button
-            type="button"
-            className="fixed left-4 top-20 z-30 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-2 shadow-lg transition-all hover:shadow-xl"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Expand notes sidebar"
-            title="Show notes list"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-600" />
-          </button>
-        )}
-
-        {/* Delete confirmation modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-medium mb-4">Delete Note</h3>
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to delete this note? This action cannot be undone.
-              </p>
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Note</h3>
+              <p className="text-gray-600 mb-6">Are you sure you want to delete this note? This action cannot be undone.</p>
                 <div className="flex gap-3 justify-end">
                   <button
-                  onClick={() => setShowDeleteConfirm(null)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
                   >
                     Cancel
                   </button>
                   <button
-                  onClick={() => {
-                    handleDeleteNote(showDeleteConfirm);
-                    setShowDeleteConfirm(null);
-                  }}
-                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                  onClick={() => deleteNote(deleteConfirm)}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                 >
                   Delete
                   </button>

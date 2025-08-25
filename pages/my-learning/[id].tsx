@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Clock } from 'lucide-react';
 import { useUser } from '../../modules/auth/hooks/useUser';
 import { useToast } from '../../modules/shared/context/ToastContext';
 import { getLearningResourceById, deleteLearningResource, LearningResource } from '../../modules/learning-resources/api/getLearningResourceById';
@@ -18,6 +18,8 @@ export default function LearningResourceDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [progressToAdd, setProgressToAdd] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [linkedNotes, setLinkedNotes] = useState<any[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
 
 
   useEffect(() => {
@@ -31,6 +33,8 @@ export default function LearningResourceDetailPage() {
         const data = await getLearningResourceById(id, user.id);
         if (data) {
           setResource(data);
+          // Load linked notes after resource is loaded
+          loadLinkedNotes(id);
         } else {
           setError('Resource not found');
         }
@@ -44,6 +48,73 @@ export default function LearningResourceDetailPage() {
 
     loadResource();
   }, [id, user?.id]);
+
+  const loadLinkedNotes = async (resourceId: string) => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingNotes(true);
+      
+      const { data, error } = await supabase
+        .from('notes')
+        .select('id, title, content, created_at, updated_at')
+        .eq('user_id', user.id)
+        .eq('linked_resource_id', resourceId)
+        .order('updated_at', { ascending: false })
+        .limit(5); // Show only the 5 most recent notes
+
+      if (error) throw error;
+      
+      setLinkedNotes(data || []);
+    } catch (error) {
+      console.error('Error loading linked notes:', error);
+      // Don't show error toast for notes - it's not critical
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  const getContentPreview = (content: any) => {
+    if (!content) return 'No content';
+    
+    // Handle different content formats
+    if (typeof content === 'string') {
+      return content.substring(0, 80) + (content.length > 80 ? '...' : '');
+    }
+    
+    // Handle TipTap/rich text JSON format
+    if (content.type === 'doc' && content.content) {
+      const textContent = extractTextFromTipTap(content);
+      return textContent.substring(0, 80) + (textContent.length > 80 ? '...' : '');
+    }
+    
+    return 'Rich content';
+  };
+
+  const extractTextFromTipTap = (doc: any): string => {
+    if (!doc || !doc.content) return '';
+    
+    let text = '';
+    for (const block of doc.content) {
+      if (block.content) {
+        for (const inline of block.content) {
+          if (inline.text) {
+            text += inline.text + ' ';
+          }
+        }
+      }
+    }
+    return text.trim();
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   const handleEdit = () => {
     if (resource) {
@@ -282,13 +353,76 @@ export default function LearningResourceDetailPage() {
             </div>
 
             <div className="pt-4 border-t mt-4">
-              <h2 className="text-sm font-medium text-gray-800 mb-2">Linked Notes</h2>
-              <p 
-                className="text-sm text-blue-600 hover:underline cursor-pointer" 
-                onClick={() => router.push('/notes')}
-              >
-                View Notes
-              </p>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-medium text-gray-800">Linked Notes</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => router.push(`/notes/new?resource_id=${resource?.id}`)}
+                    className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Note
+                  </button>
+                  <button
+                    onClick={() => router.push('/notes')}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    View All
+                  </button>
+                </div>
+              </div>
+
+              {loadingNotes ? (
+                <div className="animate-pulse space-y-2">
+                  {[1, 2].map(i => (
+                    <div key={i} className="h-12 bg-gray-100 rounded"></div>
+                  ))}
+                </div>
+              ) : linkedNotes.length > 0 ? (
+                <div className="space-y-2">
+                  {linkedNotes.map((note) => (
+                    <div
+                      key={note.id}
+                      onClick={() => router.push(`/notes/${note.id}`)}
+                      className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                            {note.title || 'Untitled'}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                            {getContentPreview(note.content)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500 ml-2">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDate(note.updated_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {linkedNotes.length === 5 && (
+                    <button
+                      onClick={() => router.push(`/notes?filter=resource:${resource?.id}`)}
+                      className="w-full text-xs text-blue-600 hover:underline py-2"
+                    >
+                      View all notes for this resource
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <p className="text-xs">No notes yet for this resource</p>
+                  <button
+                    onClick={() => router.push(`/notes/new?resource_id=${resource?.id}`)}
+                    className="mt-2 text-xs text-blue-600 hover:underline"
+                  >
+                    Add your first note
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Debug content to test scrolling */}

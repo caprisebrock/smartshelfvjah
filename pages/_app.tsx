@@ -5,7 +5,7 @@ import '../styles/notes.css';
 import { HabitsProvider } from '../modules/habits/context/HabitsContext';
 import { ThemeProvider } from '../modules/shared/context/ThemeContext';
 import { ToastProvider } from '../modules/shared/context/ToastContext';
-import { ChatProvider } from '../modules/ai-chat/context/ChatContext';
+
 import Layout from '../modules/shared/components/Layout';
 import AuthWrapper from '../modules/auth/components/AuthWrapper';
 import Toast from '../modules/shared/components/Toast';
@@ -14,7 +14,7 @@ import { supabase } from '../modules/database/config/databaseConfig';
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  // Sidebar only on dashboard and settings (AI Chat has its own layout)
+  // Sidebar only on dashboard and settings
   const showSidebar = router.pathname === '/' || router.pathname === '/settings';
   
   // Pages that need to handle their own layout and scrolling
@@ -32,20 +32,18 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <ChatProvider>
-          <HabitsProvider>
-            <AuthWrapper>
-              {needsCustomLayout ? (
+        <HabitsProvider>
+          <AuthWrapper>
+            {needsCustomLayout ? (
+              <Component {...pageProps} />
+            ) : (
+              <Layout showSidebar={showSidebar}>
                 <Component {...pageProps} />
-              ) : (
-                <Layout showSidebar={showSidebar}>
-                  <Component {...pageProps} />
-                </Layout>
-              )}
-              <Toast />
-            </AuthWrapper>
-          </HabitsProvider>
-        </ChatProvider>
+              </Layout>
+            )}
+            <Toast />
+          </AuthWrapper>
+        </HabitsProvider>
       </ToastProvider>
     </ThemeProvider>
   );

@@ -3,6 +3,9 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { Bot, Send, Sparkles, RefreshCw, Copy, Save, BookOpen, History, Zap, Clock, MessageSquare } from 'lucide-react';
 import BackButton from '../modules/shared/components/BackButton';
+import { useUser } from '../modules/auth/hooks/useUser';
+import { useToast } from '../modules/shared/context/ToastContext';
+import { supabase } from '../modules/database/config/databaseConfig';
 
 const TONE_OPTIONS = [
   { value: 'Summary', label: 'Summary', icon: '📝', description: 'Concise overview of key points' },
@@ -54,6 +57,8 @@ function timeAgo(date: Date): string {
 
 export default function AskAIPage() {
   const router = useRouter();
+  const { user } = useUser();
+  const { addToast } = useToast();
   const [prompt, setPrompt] = useState('');
   const [tone, setTone] = useState('Summary');
   const [model, setModel] = useState('gpt-3.5-turbo');
@@ -183,31 +188,35 @@ export default function AskAIPage() {
   };
 
   // Save as Note
-  const handleSaveAsNote = () => {
-    if (!aiResponse) return;
-
-    const note: AiNote = {
-      id: Date.now().toString(),
-      title: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
-      content: aiResponse,
-      tone,
-      quote: quote || undefined,
-      date: new Date().toISOString(),
-    };
-
-    if (typeof window !== 'undefined') {
-      const existingNotes = JSON.parse(localStorage.getItem('aiNotes') || '[]');
-      localStorage.setItem('aiNotes', JSON.stringify([note, ...existingNotes]));
+  const handleSaveAsNote = async () => {
+    if (!aiResponse || !user?.id) {
+      addToast('Please sign in to save notes', 'error');
+      return;
     }
 
-    // Show success feedback
-    const originalText = 'Save as Note';
-    const button = document.querySelector('[data-save-note]') as HTMLButtonElement;
-    if (button) {
-      button.textContent = '✅ Saved!';
+    try {
+      const noteTitle = prompt.slice(0, 50) + (prompt.length > 50 ? '...' : '');
+      
+      const { error } = await supabase
+        .from('notes')
+        .insert({
+          user_id: user.id,
+          title: noteTitle,
+          content: aiResponse,
+          tags: tone ? [tone.toLowerCase()] : null,
+        });
+
+      if (error) throw error;
+
+      addToast('Note saved successfully!', 'success');
+      
+      // Optional: Navigate to the notes page
       setTimeout(() => {
-        button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>Save as Note';
-      }, 1500);
+        router.push('/notes');
+      }, 1000);
+    } catch (error) {
+      console.error('Error saving note:', error);
+      addToast('Failed to save note', 'error');
     }
   };
 

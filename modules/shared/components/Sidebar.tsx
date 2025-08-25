@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useUser } from '../../auth/hooks/useUser';
 import { supabase } from '../../database/config/databaseConfig';
-import { BookOpen, FileText, Bot, Sparkles, BarChart2, Calendar, PlusCircle, Lightbulb, Settings, LogOut, User, Target } from 'lucide-react';
+import { BookOpen, FileText, Sparkles, BarChart2, Calendar, PlusCircle, Lightbulb, Settings, LogOut, User, Target } from 'lucide-react';
 import { useEffect } from 'react';
 import SignOutButton from '../../auth/components/SignOutButton';
 
@@ -13,7 +13,6 @@ const navItems = [
   { label: 'Dashboard', href: '/', icon: BarChart2 },
   { label: 'My Learning', href: '/my-learning', icon: BookOpen },
   { label: 'Notes', href: '/notes', icon: FileText },
-  { label: 'AI Chat', href: '/aichat', icon: Bot },
   { label: 'Progress', href: '/progress', icon: Calendar },
   { label: 'Settings', href: '/settings', icon: Settings },
 ];

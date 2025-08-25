@@ -124,8 +124,8 @@ export default function LearningResourceDetailPage() {
         <Head>
           <title>Loading Resource - SmartShelf</title>
         </Head>
-        <div className="min-h-screen bg-gray-50">
-          <main className="p-6 max-w-3xl mx-auto">
+        <div className="flex flex-col h-screen overflow-y-auto bg-gray-50">
+          <main className="p-6 max-w-3xl mx-auto w-full">
             <div className="animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-32 mb-6"></div>
               <div className="bg-white shadow rounded-lg p-6">
@@ -154,8 +154,8 @@ export default function LearningResourceDetailPage() {
         <Head>
           <title>Resource Not Found - SmartShelf</title>
         </Head>
-        <div className="min-h-screen bg-gray-50">
-          <main className="p-6 max-w-3xl mx-auto">
+        <div className="flex flex-col h-screen overflow-y-auto bg-gray-50">
+          <main className="p-6 max-w-3xl mx-auto w-full">
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📚</div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">Resource Not Found</h2>
@@ -180,8 +180,8 @@ export default function LearningResourceDetailPage() {
         <title>{resource.title} - SmartShelf</title>
         <meta name="description" content={`View details for ${resource.title}`} />
       </Head>
-      <div className="min-h-screen bg-gray-50">
-        <main className="p-6 max-w-3xl mx-auto">
+      <div className="flex flex-col h-screen overflow-y-auto bg-gray-50">
+        <main className="p-6 max-w-3xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6">
             <button 
               className="flex items-center text-blue-500 hover:underline" 

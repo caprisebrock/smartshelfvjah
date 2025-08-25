@@ -7,6 +7,7 @@ import { LearningPlan } from '../modules/learning-resources/types/learningPlan.t
 import { useUser } from '../modules/auth/hooks/useUser';
 
 export default function PlansPage() {
+  const router = useRouter();
   const { user } = useUser();
   const [plans, setPlans] = useState<LearningPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,8 +54,8 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto p-6">
+    <div className="flex flex-col h-screen overflow-y-auto bg-gray-50">
+      <div className="max-w-4xl mx-auto p-6 w-full">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Link href="/my-learning" className="flex items-center text-blue-600 hover:underline">
@@ -91,7 +92,11 @@ export default function PlansPage() {
           ) : (
             <div className="space-y-6">
               {plans.map((plan) => (
-                <div key={plan.id} className="border border-gray-200 rounded-lg p-6">
+                <div 
+                  key={plan.id} 
+                  className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/plan/${plan.id}`)}
+                >
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{plan.title}</h3>
@@ -116,7 +121,7 @@ export default function PlansPage() {
                   </div>
                   
                   {plan.milestones && plan.milestones.length > 0 && (
-                    <div className="max-h-96 overflow-y-auto px-4 pt-4 pb-4">
+                    <div className="px-4 pt-4 pb-4">
                       <h4 className="font-medium text-gray-900 mb-3">Daily Milestones</h4>
                       <div className="space-y-3">
                         {plan.milestones.map((milestone, index) => (

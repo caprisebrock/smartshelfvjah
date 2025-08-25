@@ -218,6 +218,7 @@ export default function MyLearningPage() {
           </div>
 
           {/* Smart Assistant Banner */}
+          {/* ✅ This milestone is generated from real learning_resources in Supabase */}
           {currentSuggestion && (
             <SmartAssistantBanner
               suggestion={currentSuggestion}

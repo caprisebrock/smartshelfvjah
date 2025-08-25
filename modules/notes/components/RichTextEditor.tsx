@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+'use client';
+import React, { useEffect, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -19,6 +20,12 @@ export default function RichTextEditor({
   placeholder = "Start writing...",
   onUpdate 
 }: RichTextEditorProps) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -34,6 +41,7 @@ export default function RichTextEditor({
       CharacterCount,
     ],
     content,
+    immediatelyRender: false, // Explicitly set to false to avoid hydration mismatches
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       onChange(html);
@@ -53,8 +61,20 @@ export default function RichTextEditor({
     }
   }, [content, editor]);
 
-  if (!editor) {
-    return null;
+  // Don't render during SSR or if editor is not ready
+  if (!isClient || !editor) {
+    return (
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="flex items-center gap-1 p-2 border-b border-gray-200 bg-gray-50">
+          <div className="text-xs text-gray-500">Loading editor...</div>
+        </div>
+        <div className="min-h-[300px] max-h-[600px] overflow-y-auto p-4">
+          <div className="animate-pulse bg-gray-100 h-4 rounded mb-2"></div>
+          <div className="animate-pulse bg-gray-100 h-4 rounded mb-2 w-3/4"></div>
+          <div className="animate-pulse bg-gray-100 h-4 rounded w-1/2"></div>
+        </div>
+      </div>
+    );
   }
 
   const setLink = () => {

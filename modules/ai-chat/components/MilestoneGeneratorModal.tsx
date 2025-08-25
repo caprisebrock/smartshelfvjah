@@ -179,9 +179,9 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
       <div className="h-full flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b">
+          <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
             <div className="flex items-center gap-3">
               <Brain className="w-6 h-6 text-blue-600" />
               <h2 className="text-xl font-semibold text-gray-900">AI-Powered Milestone Generator</h2>
@@ -195,7 +195,8 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6 space-y-6">
           {currentStep === 'form' ? (
             <>
               {/* Description */}
@@ -342,6 +343,7 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
               </div>
             </>
           )}
+            </div>
           </div>
         </div>
       </div>

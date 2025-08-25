@@ -465,8 +465,9 @@ export default function AdvancedNotesPage() {
                     <Edit3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="text-sm">No notes found</p>
                     <button
-                      onClick={createNewNote}
+                      onClick={() => router.push('/notes/new')}
                       className="mt-2 text-sm text-blue-600 hover:underline"
+                      data-testid="create-note-button-sidebar"
                     >
                       Create your first note
                     </button>
@@ -663,8 +664,9 @@ export default function AdvancedNotesPage() {
                   Your notes are automatically saved and synced.
                 </p>
                 <button
-                  onClick={createNewNote}
+                  onClick={() => router.push('/notes/new')}
                   className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                  data-testid="create-note-button-main"
                 >
                   <Plus className="w-5 h-5" />
                   Create your first note

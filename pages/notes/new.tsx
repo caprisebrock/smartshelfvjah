@@ -109,7 +109,17 @@ export default function NewNotePage() {
   };
 
   const saveNote = async () => {
+    // Double-check authentication with Supabase Auth
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authUser) {
+      console.error('Authentication error:', authError);
+      addToast('Please sign in again to save notes', 'error');
+      return;
+    }
+
     if (!user?.id) {
+      console.error('No user found in context');
       addToast('Please sign in to save notes', 'error');
       return;
     }
@@ -122,14 +132,20 @@ export default function NewNotePage() {
     try {
       setSaving(true);
       
+      console.log('Creating note for user:', authUser.id);
+      
       const noteData = {
-        user_id: user.id,
+        user_id: authUser.id, // Use the freshly verified user ID
         title: title.trim(),
         content: content.trim(),
         linked_resource_id: linkedResourceId || null,
         linked_habit_id: linkedHabitId || null,
         tags: tags.length > 0 ? tags : null,
+        is_pinned: false,
+        editing_duration_minutes: 0,
       };
+
+      console.log('Note data to insert:', noteData);
 
       const { data, error } = await supabase
         .from('notes')
@@ -137,13 +153,17 @@ export default function NewNotePage() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase insert error:', error.message, error.details);
+        throw error;
+      }
 
+      console.log('Note created successfully:', data);
       addToast('Note created successfully!', 'success');
       router.push(`/notes/${data.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving note:', error);
-      addToast('Failed to save note', 'error');
+      addToast(`Failed to save note: ${error.message || 'Unknown error'}`, 'error');
     } finally {
       setSaving(false);
     }

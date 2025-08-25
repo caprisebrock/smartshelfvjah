@@ -126,10 +126,25 @@ export default function AdvancedNotesPage() {
   };
 
   const loadNotes = async () => {
-    if (!user?.id) return;
+    // Double-check authentication
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authUser) {
+      console.error('Authentication error when loading notes:', authError);
+      setLoading(false);
+      return;
+    }
+
+    if (!user?.id) {
+      console.error('No user found in context when loading notes');
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);
+      
+      console.log('Loading notes for user:', authUser.id);
       
       const { data, error } = await supabase
         .from('notes')
@@ -154,11 +169,16 @@ export default function AdvancedNotesPage() {
             emoji
           )
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', authUser.id) // Use the freshly verified user ID
         .order('is_pinned', { ascending: false })
         .order('last_edited_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase query error:', error.message, error.details);
+        throw error;
+      }
+
+      console.log('Notes loaded successfully:', data?.length || 0, 'notes found');
 
       // Transform the joined data
       const transformedNotes = (data || []).map(note => {
@@ -180,9 +200,9 @@ export default function AdvancedNotesPage() {
         setSelectedNoteId(transformedNotes[0].id);
         setSelectedNote(transformedNotes[0]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading notes:', error);
-      addToast('Failed to load notes', 'error');
+      addToast(`Failed to load notes: ${error.message || 'Unknown error'}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -219,24 +239,47 @@ export default function AdvancedNotesPage() {
 
   // Create new note
   const createNewNote = async () => {
+    // Double-check authentication with Supabase Auth
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authUser) {
+      console.error('Authentication error:', authError);
+      addToast('Please sign in again to create notes', 'error');
+      return;
+    }
+
     if (!user?.id) {
+      console.error('No user found in context');
       addToast('Please sign in to create notes', 'error');
       return;
     }
 
     try {
+      console.log('Creating new note for user:', authUser.id);
+      
+      const noteData = {
+        user_id: authUser.id, // Use the freshly verified user ID
+        title: 'Untitled Note',
+        content: '',
+        is_pinned: false,
+        editing_duration_minutes: 0,
+        last_edited_at: new Date().toISOString(),
+      };
+
+      console.log('Note data to insert:', noteData);
+
       const { data, error } = await supabase
         .from('notes')
-        .insert({
-          user_id: user.id,
-          title: 'Untitled Note',
-          content: '',
-          is_pinned: false,
-        })
+        .insert(noteData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase insert error:', error.message, error.details);
+        throw error;
+      }
+
+      console.log('Note created successfully:', data);
 
       const newNote = {
         ...data,
@@ -251,9 +294,9 @@ export default function AdvancedNotesPage() {
       setSelectedNote(newNote);
       setEditingStartTime(new Date());
       addToast('New note created!', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating note:', error);
-      addToast('Failed to create note', 'error');
+      addToast(`Failed to create note: ${error.message || 'Unknown error'}`, 'error');
     }
   };
 

@@ -173,8 +173,8 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-hidden">
+      <div className="bg-white rounded-lg max-w-2xl w-full h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
@@ -190,7 +190,7 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <div className="p-6 space-y-6">
           {currentStep === 'form' ? (
             <>
@@ -308,6 +308,13 @@ export default function MilestoneGeneratorModal({ isOpen, onClose, resource }: M
                     <div className="mt-8 p-4 bg-purple-50 rounded text-sm text-purple-800">
                       🔧 Debug: Modal scroll test. If you can see this message, modal scrolling is working! Try scrolling within this modal.
                     </div>
+                    
+                    {/* Extra test content to force scrolling */}
+                    {[1,2,3,4,5,6,7,8,9,10].map(i => (
+                      <div key={i} className="mt-4 p-4 bg-yellow-50 rounded text-sm">
+                        Test scroll content #{i} - This should be scrollable within the modal
+                      </div>
+                    ))}
                   </div>
                 </div>
 

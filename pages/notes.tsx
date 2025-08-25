@@ -42,6 +42,7 @@ export default function AdvancedNotesPage() {
   const [editingStartTime, setEditingStartTime] = useState<Date | null>(null);
   const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(null);
   const [tagInput, setTagInput] = useState('');
+  const [creatingNote, setCreatingNote] = useState(false);
 
   // Auto-save interval
   const saveNote = useCallback(async (note: Note) => {
@@ -237,8 +238,11 @@ export default function AdvancedNotesPage() {
     (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
-  // Create new note
+  // Create new note and route to AI-powered editor
   const createNewNote = async () => {
+    // Prevent duplicate note creation
+    if (creatingNote) return;
+    
     // Double-check authentication with Supabase Auth
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     
@@ -255,11 +259,12 @@ export default function AdvancedNotesPage() {
     }
 
     try {
+      setCreatingNote(true);
       console.log('Creating new note for user:', authUser.id);
       
       const noteData = {
         user_id: authUser.id, // Use the freshly verified user ID
-        title: 'Untitled Note',
+        title: '',
         content: '',
         is_pinned: false,
         editing_duration_minutes: 0,
@@ -281,22 +286,14 @@ export default function AdvancedNotesPage() {
 
       console.log('Note created successfully:', data);
 
-      const newNote = {
-        ...data,
-        resource_title: undefined,
-        resource_emoji: undefined,
-        habit_title: undefined,
-        habit_emoji: undefined,
-      };
-
-      setNotes(prev => [newNote, ...prev]);
-      setSelectedNoteId(newNote.id);
-      setSelectedNote(newNote);
-      setEditingStartTime(new Date());
-      addToast('New note created!', 'success');
+      // Route to AI-powered editor interface
+      router.push(`/notes/${data.id}/edit`);
+      addToast('New note created! Starting AI-powered editor...', 'success');
     } catch (error: any) {
       console.error('Error creating note:', error);
       addToast(`Failed to create note: ${error.message || 'Unknown error'}`, 'error');
+    } finally {
+      setCreatingNote(false);
     }
   };
 
@@ -430,10 +427,15 @@ export default function AdvancedNotesPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={createNewNote}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="New note"
+                      disabled={creatingNote}
+                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={creatingNote ? "Creating note..." : "New note"}
                     >
-                      <Plus className="w-4 h-4" />
+                      {creatingNote ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
                     </button>
                     <button
                       onClick={() => setSidebarCollapsed(true)}
@@ -465,11 +467,12 @@ export default function AdvancedNotesPage() {
                     <Edit3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="text-sm">No notes found</p>
                     <button
-                      onClick={() => router.push('/notes/new')}
-                      className="mt-2 text-sm text-blue-600 hover:underline"
+                      onClick={createNewNote}
+                      disabled={creatingNote}
+                      className="mt-2 text-sm text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="create-note-button-sidebar"
                     >
-                      Create your first note
+                      {creatingNote ? 'Creating...' : 'Create your first note'}
                     </button>
                   </div>
                 ) : (
@@ -664,12 +667,22 @@ export default function AdvancedNotesPage() {
                   Your notes are automatically saved and synced.
                 </p>
                 <button
-                  onClick={() => router.push('/notes/new')}
-                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={createNewNote}
+                  disabled={creatingNote}
+                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="create-note-button-main"
                 >
-                  <Plus className="w-5 h-5" />
-                  Create your first note
+                  {creatingNote ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Creating note...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5" />
+                      Create your first note
+                    </>
+                  )}
                 </button>
               </div>
             </div>

@@ -62,7 +62,7 @@ export default function NoteDetailPage() {
             emoji
           ),
           habits:linked_habit_id (
-            title,
+            name:habit_name,
             emoji
           )
         `)
@@ -86,7 +86,7 @@ export default function NoteDetailPage() {
         ...data,
         resource_title: resources?.title,
         resource_emoji: resources?.emoji,
-        habit_title: habits?.title,
+        habit_title: habits?.habit_name,
         habit_emoji: habits?.emoji,
       };
 

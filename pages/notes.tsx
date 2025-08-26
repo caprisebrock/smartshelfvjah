@@ -192,37 +192,104 @@ export default function AdvancedNotesPage() {
         const fullNotes = await Promise.all(notesWithBasicData.map(async (basicNote) => {
           try {
             // Try to get extended fields for this note
-            const { data: noteData, error: noteError } = await supabase
-              .from('notes')
-              .select(`
-                id,
-                title,
-                content,
-                is_pinned,
-                tags,
-                editing_duration_minutes,
-                linked_resource_id,
-                linked_habit_id,
-                created_at,
-                updated_at,
-                last_edited_at
-              `)
-              .eq('id', basicNote.id)
-              .single();
-              
-            if (noteError) {
-              console.error(`Error loading extended data for note ${basicNote.id}:`, noteError);
-              // Return basic note with default values
-              return {
-                ...basicNote,
-                is_pinned: false,
-                tags: null,
-                editing_duration_minutes: 0,
-                linked_resource_id: null,
-                linked_habit_id: null,
-                last_edited_at: basicNote.updated_at
-              };
+            // Try to query for each column individually to handle missing columns
+            let noteData = { ...basicNote };
+            
+            try {
+              // First, try to get basic fields that should always be present
+              const { data: basicData, error: basicError } = await supabase
+                .from('notes')
+                .select(`
+                  id,
+                  title,
+                  content,
+                  created_at,
+                  updated_at
+                `)
+                .eq('id', basicNote.id)
+                .single();
+                
+              if (!basicError && basicData) {
+                noteData = { ...noteData, ...basicData };
+              }
+            } catch (basicError) {
+              console.error(`Error loading basic data for note ${basicNote.id}:`, basicError);
             }
+            
+            // Now try to get each extended field separately
+            try {
+              const { data: isPinnedData, error: isPinnedError } = await supabase
+                .from('notes')
+                .select('is_pinned')
+                .eq('id', basicNote.id)
+                .single();
+                
+              if (!isPinnedError && isPinnedData) {
+                noteData.is_pinned = isPinnedData.is_pinned;
+              } else {
+                noteData.is_pinned = false;
+              }
+            } catch (isPinnedError) {
+              console.error(`Error loading is_pinned for note ${basicNote.id}:`, isPinnedError);
+              noteData.is_pinned = false;
+            }
+            
+            try {
+              const { data: durationData, error: durationError } = await supabase
+                .from('notes')
+                .select('editing_duration_minutes')
+                .eq('id', basicNote.id)
+                .single();
+                
+              if (!durationError && durationData) {
+                noteData.editing_duration_minutes = durationData.editing_duration_minutes;
+              } else {
+                noteData.editing_duration_minutes = 0;
+              }
+            } catch (durationError) {
+              console.error(`Error loading editing_duration_minutes for note ${basicNote.id}:`, durationError);
+              noteData.editing_duration_minutes = 0;
+            }
+            
+            try {
+              const { data: lastEditedData, error: lastEditedError } = await supabase
+                .from('notes')
+                .select('last_edited_at')
+                .eq('id', basicNote.id)
+                .single();
+                
+              if (!lastEditedError && lastEditedData) {
+                noteData.last_edited_at = lastEditedData.last_edited_at;
+              } else {
+                noteData.last_edited_at = noteData.updated_at;
+              }
+            } catch (lastEditedError) {
+              console.error(`Error loading last_edited_at for note ${basicNote.id}:`, lastEditedError);
+              noteData.last_edited_at = noteData.updated_at;
+            }
+            
+            try {
+              const { data: linkData, error: linkError } = await supabase
+                .from('notes')
+                .select('linked_resource_id, linked_habit_id')
+                .eq('id', basicNote.id)
+                .single();
+                
+              if (!linkError && linkData) {
+                noteData.linked_resource_id = linkData.linked_resource_id;
+                noteData.linked_habit_id = linkData.linked_habit_id;
+              } else {
+                noteData.linked_resource_id = null;
+                noteData.linked_habit_id = null;
+              }
+            } catch (linkError) {
+              console.error(`Error loading links for note ${basicNote.id}:`, linkError);
+              noteData.linked_resource_id = null;
+              noteData.linked_habit_id = null;
+            }
+            
+            // Don't try to load tags - we know it's missing
+            noteData.tags = null;
             
             return noteData;
           } catch (noteError) {

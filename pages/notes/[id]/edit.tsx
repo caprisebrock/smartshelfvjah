@@ -106,9 +106,15 @@ export default function AINotesEditor() {
 
   // Load note data
   useEffect(() => {
+    console.log('Edit page - id param:', id);
+    console.log('Edit page - user:', user);
+    
     if (id && user?.id && typeof id === 'string') {
+      console.log('Loading note with id:', id);
       loadNote(id);
       loadLinkingOptions();
+    } else {
+      console.log('Missing required data - id or user:', { id, userId: user?.id });
     }
   }, [id, user?.id]);
 
@@ -131,8 +137,10 @@ export default function AINotesEditor() {
   const loadNote = async (noteId: string) => {
     try {
       setLoading(true);
+      console.log('Loading note with ID:', noteId);
+      console.log('User ID for query:', user!.id);
 
-      const { data, error } = await supabase
+      const query = supabase
         .from('notes')
         .select(`
           id,
@@ -158,17 +166,24 @@ export default function AINotesEditor() {
         .eq('id', noteId)
         .eq('user_id', user!.id)
         .single();
+      
+      console.log('Supabase query:', query);
+      const { data, error } = await query;
+      console.log('Query result - data:', data, 'error:', error);
 
       if (error) {
         if (error.code === 'PGRST116') {
+          console.error('Note not found error:', error);
           addToast('Note not found', 'error');
           router.push('/notes');
         } else {
+          console.error('Other Supabase error:', error);
           throw error;
         }
         return;
       }
 
+      console.log('Note data loaded successfully:', data);
       // Transform the joined data
       const resources = data.learning_resources as any;
       const habits = data.habits as any;
@@ -180,6 +195,7 @@ export default function AINotesEditor() {
         habit_emoji: habits?.emoji,
       };
 
+      console.log('Transformed note:', transformedNote);
       setNote(transformedNote);
     } catch (error) {
       console.error('Error loading note:', error);

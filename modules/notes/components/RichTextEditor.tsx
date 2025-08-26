@@ -28,7 +28,10 @@ export default function RichTextEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // Disable the default Link extension from StarterKit
+        link: false,
+      }),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {

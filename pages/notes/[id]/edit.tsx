@@ -159,7 +159,7 @@ export default function AINotesEditor() {
             emoji
           ),
           habits:linked_habit_id (
-            name:habit_name,
+            name,
             emoji
           )
         `)
@@ -191,7 +191,7 @@ export default function AINotesEditor() {
         ...data,
         resource_title: resources?.title,
         resource_emoji: resources?.emoji,
-        habit_title: habits?.habit_name,
+        habit_title: habits?.name,
         habit_emoji: habits?.emoji,
       };
 

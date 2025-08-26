@@ -166,7 +166,7 @@ export default function AdvancedNotesPage() {
             emoji
           ),
           habits:linked_habit_id (
-            name:habit_name,
+            name,
             emoji
           )
         `)
@@ -189,7 +189,7 @@ export default function AdvancedNotesPage() {
           ...note,
           resource_title: resources?.title,
           resource_emoji: resources?.emoji,
-          habit_title: habits?.habit_name,
+          habit_title: habits?.name,
           habit_emoji: habits?.emoji,
         };
       });

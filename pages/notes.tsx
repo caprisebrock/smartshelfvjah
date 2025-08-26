@@ -10,8 +10,8 @@ import AIChatPanel from '../modules/notes/components/AIChatPanel';
 
 interface Note {
   id: string;
-  title: string; 
-  content: any; 
+  title: string;
+  content: any;
   is_pinned: boolean;
   tags: string[] | null;
   editing_duration_minutes: number;
@@ -240,31 +240,23 @@ export default function AdvancedNotesPage() {
 
   // Create new note and route to AI-powered editor
   const createNewNote = async () => {
-    console.log('Create note button clicked');
-    
     // Prevent duplicate note creation
-    if (creatingNote) {
-      console.log('Already creating note, preventing duplicate');
-      return;
-    }
+    if (creatingNote) return;
     
     // Double-check authentication with Supabase Auth
-    console.log('Checking authentication...');
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !authUser) {
       console.error('Authentication error:', authError);
       addToast('Please sign in again to create notes', 'error');
-        return;
-      }
-    console.log('Authentication successful, user:', authUser);
+      return;
+    }
 
     if (!user?.id) {
       console.error('No user found in context');
       addToast('Please sign in to create notes', 'error');
       return;
     }
-    console.log('User context check passed');
 
     try {
       setCreatingNote(true);
@@ -281,7 +273,6 @@ export default function AdvancedNotesPage() {
 
       console.log('Note data to insert:', noteData);
 
-      console.log('Inserting note into Supabase...');
       const { data, error } = await supabase
         .from('notes')
         .insert(noteData)
@@ -296,15 +287,12 @@ export default function AdvancedNotesPage() {
       console.log('Note created successfully:', data);
 
       // Route to AI-powered editor interface
-      const editUrl = `/notes/${data.id}/edit`;
-      console.log('Routing to:', editUrl);
-      router.push(editUrl);
+      router.push(`/notes/${data.id}/edit`);
       addToast('New note created! Starting AI-powered editor...', 'success');
     } catch (error: any) {
       console.error('Error creating note:', error);
       addToast(`Failed to create note: ${error.message || 'Unknown error'}`, 'error');
     } finally {
-      console.log('Resetting creatingNote state');
       setCreatingNote(false);
     }
   };
@@ -426,7 +414,7 @@ export default function AdvancedNotesPage() {
         <title>Smart Notes - SmartShelf</title>
         <meta name="description" content="Advanced note-taking with AI assistance" />
       </Head>
-
+      
       <div className="h-screen flex bg-gray-50 overflow-hidden">
         {/* Collapsible Sidebar */}
         <div className={`${sidebarCollapsed ? 'w-0' : 'w-80'} transition-all duration-300 bg-white border-r border-gray-200 flex flex-col`}>
@@ -437,7 +425,7 @@ export default function AdvancedNotesPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h1 className="text-xl font-bold text-gray-900">Smart Notes</h1>
                   <div className="flex items-center gap-2">
-            <button
+                    <button
                       onClick={createNewNote}
                       disabled={creatingNote}
                       className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -448,16 +436,16 @@ export default function AdvancedNotesPage() {
                       ) : (
                         <Plus className="w-4 h-4" />
                       )}
-            </button>
-            <button 
+                    </button>
+                    <button
                       onClick={() => setSidebarCollapsed(true)}
                       className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
                       title="Collapse sidebar"
-            >
+                    >
                       <X className="w-4 h-4" />
-            </button>
-          </div>
-          </div>
+                    </button>
+                  </div>
+                </div>
 
                 {/* Search */}
                 <div className="relative">
@@ -474,7 +462,7 @@ export default function AdvancedNotesPage() {
 
               {/* Notes List */}
               <div className="flex-1 overflow-y-auto">
-            {filteredNotes.length === 0 ? (
+                {filteredNotes.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">
                     <Edit3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="text-sm">No notes found</p>
@@ -486,12 +474,12 @@ export default function AdvancedNotesPage() {
                     >
                       {creatingNote ? 'Creating...' : 'Create your first note'}
                     </button>
-              </div>
-            ) : (
+                  </div>
+                ) : (
                   <div className="p-2">
                     {filteredNotes.map((note) => (
                       <div
-                      key={note.id}
+                        key={note.id}
                         onClick={() => selectNote(note.id)}
                         className={`p-3 mb-2 rounded-lg cursor-pointer transition-all duration-200 ${
                           selectedNoteId === note.id
@@ -508,7 +496,7 @@ export default function AdvancedNotesPage() {
                               <h3 className="font-medium text-gray-900 text-sm truncate">
                                 {note.title || 'Untitled'}
                               </h3>
-                        </div>
+                            </div>
                             <p className="text-xs text-gray-600 line-clamp-2 mb-2">
                               {getContentPreview(note.content)}
                             </p>
@@ -556,15 +544,15 @@ export default function AdvancedNotesPage() {
                                 {note.editing_duration_minutes > 0 && (
                                   <span>{note.editing_duration_minutes}m</span>
                                 )}
-                              <button
-                          onClick={(e) => {
-                            e.stopPropagation();
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     togglePin(note.id, note.is_pinned);
-                          }}
+                                  }}
                                   className="hover:text-yellow-500 transition-colors"
-                        >
+                                >
                                   <Star className={`w-3 h-3 ${note.is_pinned ? 'text-yellow-500 fill-current' : ''}`} />
-                              </button>
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -575,8 +563,8 @@ export default function AdvancedNotesPage() {
                 )}
               </div>
             </>
-                        )}
-                            </div>
+          )}
+        </div>
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
@@ -593,8 +581,8 @@ export default function AdvancedNotesPage() {
                 </button>
               )}
               {selectedNote && (
-                  <input
-                    type="text"
+                <input
+                  type="text"
                   value={selectedNote.title}
                   onChange={(e) => updateNoteTitle(e.target.value)}
                   className="text-lg font-semibold bg-transparent border-none outline-none text-gray-900 placeholder-gray-400"
@@ -629,8 +617,8 @@ export default function AdvancedNotesPage() {
                       placeholder="Add tag..."
                       className="text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-w-[80px]"
                     />
-                        </div>
-                      </div>
+                  </div>
+                </div>
                 
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <MessageSquare className="w-4 h-4" />
@@ -638,7 +626,7 @@ export default function AdvancedNotesPage() {
                 </div>
               </div>
             )}
-        </div>
+          </div>
 
           {/* Content Area */}
           {selectedNote ? (
@@ -655,7 +643,7 @@ export default function AdvancedNotesPage() {
                     }}
                   />
                 </div>
-                  </div>
+              </div>
 
               {/* AI Chat Panel (50%) */}
               <div className="flex-1 bg-gray-50">
@@ -678,7 +666,7 @@ export default function AdvancedNotesPage() {
                   Create and organize your thoughts with AI-powered assistance. 
                   Your notes are automatically saved and synced.
                 </p>
-                  <button
+                <button
                   onClick={createNewNote}
                   disabled={creatingNote}
                   className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -695,27 +683,21 @@ export default function AdvancedNotesPage() {
                       Create your first note
                     </>
                   )}
-                  </button>
+                </button>
               </div>
             </div>
           )}
-          </div>
+        </div>
 
         {/* Floating Action Button for Mobile */}
         <button
           onClick={createNewNote}
-          disabled={creatingNote}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all duration-200 z-50 flex items-center justify-center md:hidden disabled:opacity-50 disabled:cursor-not-allowed"
-          title={creatingNote ? "Creating note..." : "Create new note"}
-          data-testid="create-note-fab"
+          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all duration-200 z-50 flex items-center justify-center md:hidden"
+          title="Create new note"
         >
-          {creatingNote ? (
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-          ) : (
-            <Plus className="w-6 h-6" />
-          )}
+          <Plus className="w-6 h-6" />
         </button>
       </div>
     </>
   );
-} 
+}

@@ -285,7 +285,7 @@ export default function AINotesEditor() {
     if (!tagInput.trim() || !note) return;
     
     const newTag = tagInput.trim().toLowerCase();
-    const currentTags = note.tags || [];
+    const currentTags = Array.isArray(note.tags) ? note.tags : [];
     
     if (!currentTags.includes(newTag)) {
       const updatedTags = [...currentTags, newTag];
@@ -297,9 +297,9 @@ export default function AINotesEditor() {
   };
 
   const removeTag = (tagToRemove: string) => {
-    if (!note) return;
+    if (!note || !Array.isArray(note.tags)) return;
     
-    const updatedTags = (note.tags || []).filter(tag => tag !== tagToRemove);
+    const updatedTags = note.tags.filter(tag => tag !== tagToRemove);
     const updatedNote = { tags: updatedTags.length > 0 ? updatedTags : null };
     setNote(prev => prev ? { ...prev, tags: updatedTags.length > 0 ? updatedTags : null } : null);
     scheduleAutoSave(updatedNote);
@@ -422,7 +422,7 @@ export default function AINotesEditor() {
             <div className="flex items-center gap-2">
               <Tag className="w-4 h-4 text-gray-400" />
               <div className="flex items-center gap-1">
-                {note.tags?.map((tag) => (
+                {note.tags && Array.isArray(note.tags) && note.tags.map((tag) => (
                   <span
                     key={tag}
                     onClick={() => removeTag(tag)}

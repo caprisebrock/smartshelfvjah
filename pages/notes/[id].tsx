@@ -311,7 +311,7 @@ export default function NoteDetailPage() {
               )}
 
               {/* Tags */}
-              {note.tags && note.tags.length > 0 && (
+              {note.tags && Array.isArray(note.tags) && note.tags.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Tag className="w-4 h-4 text-gray-400" />
                   <div className="flex flex-wrap gap-1">

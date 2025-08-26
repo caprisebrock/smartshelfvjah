@@ -233,10 +233,12 @@ export default function AdvancedNotesPage() {
   }, [notes, editingStartTime, selectedNote]);
 
   // Filter notes based on search
-  const filteredNotes = notes.filter(note => 
-    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())))
-  );
+  const filteredNotes = notes.filter(note => {
+    const titleMatch = note.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const tagMatch = note.tags && Array.isArray(note.tags) && 
+      note.tags.some(tag => tag && tag.toLowerCase().includes(searchQuery.toLowerCase()));
+    return titleMatch || tagMatch || false;
+  });
 
   // Create new note and route to AI-powered editor
   const createNewNote = async () => {
@@ -358,7 +360,7 @@ export default function AdvancedNotesPage() {
     if (!tagInput.trim() || !selectedNote) return;
     
     const newTag = tagInput.trim().toLowerCase();
-    const currentTags = selectedNote.tags || [];
+    const currentTags = Array.isArray(selectedNote.tags) ? selectedNote.tags : [];
     
     if (!currentTags.includes(newTag)) {
       const updatedTags = [...currentTags, newTag];
@@ -372,9 +374,9 @@ export default function AdvancedNotesPage() {
 
   // Remove tag
   const removeTag = (tagToRemove: string) => {
-    if (!selectedNote) return;
+    if (!selectedNote || !Array.isArray(selectedNote.tags)) return;
     
-    const updatedTags = (selectedNote.tags || []).filter(tag => tag !== tagToRemove);
+    const updatedTags = selectedNote.tags.filter(tag => tag !== tagToRemove);
     const updatedNote = { ...selectedNote, tags: updatedTags.length > 0 ? updatedTags : null };
     setSelectedNote(updatedNote);
     setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, tags: updatedTags.length > 0 ? updatedTags : null } : n));
@@ -514,7 +516,7 @@ export default function AdvancedNotesPage() {
                             </p>
                             
                             {/* Tags */}
-                            {note.tags && note.tags.length > 0 && (
+                            {note.tags && Array.isArray(note.tags) && note.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mb-2">
                                 {note.tags.slice(0, 2).map((tag, index) => (
                                   <span key={index} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
@@ -612,7 +614,7 @@ export default function AdvancedNotesPage() {
                 <div className="flex items-center gap-2">
                   <Tag className="w-4 h-4 text-gray-400" />
                   <div className="flex items-center gap-1">
-                    {selectedNote.tags?.map((tag) => (
+                    {selectedNote.tags && Array.isArray(selectedNote.tags) && selectedNote.tags.map((tag) => (
                       <span
                         key={tag}
                         onClick={() => removeTag(tag)}

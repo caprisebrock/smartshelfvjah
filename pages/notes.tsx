@@ -147,62 +147,176 @@ export default function AdvancedNotesPage() {
       
       console.log('Loading notes for user:', authUser.id);
       
-      const { data, error } = await supabase
-        .from('notes')
-        .select(`
-          id,
-          title,
-          content,
-          is_pinned,
-          tags,
-          editing_duration_minutes,
-          linked_resource_id,
-          linked_habit_id,
-          created_at,
-          updated_at,
-          last_edited_at,
-          learning_resources:linked_resource_id (
-            title,
-            emoji
-          ),
-          habits:linked_habit_id (
-            name,
-            emoji
-          )
-        `)
-        .eq('user_id', authUser.id) // Use the freshly verified user ID
-        .order('is_pinned', { ascending: false })
-        .order('last_edited_at', { ascending: false });
-
-      if (error) {
-        console.error('Supabase query error:', error.message, error.details);
-        throw error;
+      // First, try a minimal query to see if the notes table exists and is accessible
+      try {
+        const { error: testError } = await supabase
+          .from('notes')
+          .select('id')
+          .limit(1);
+          
+        if (testError) {
+          console.error('Test query failed:', testError);
+          throw testError;
+        }
+      } catch (testError) {
+        console.error('Notes table test query failed:', testError);
+        addToast('Error accessing notes table. Please check your database setup.', 'error');
+        setLoading(false);
+        return;
       }
-
-      console.log('Notes loaded successfully:', data?.length || 0, 'notes found');
-
-      // Transform the joined data
-      const transformedNotes = (data || []).map(note => {
-        const resources = note.learning_resources as any;
-        const habits = note.habits as any;
-        return {
-          ...note,
-          resource_title: resources?.title,
-          resource_emoji: resources?.emoji,
-          habit_title: habits?.name,
-          habit_emoji: habits?.emoji,
-        };
-      });
-
-      setNotes(transformedNotes);
       
-      // Auto-select first note if none selected
-      if (!selectedNoteId && transformedNotes.length > 0) {
-        setSelectedNoteId(transformedNotes[0].id);
-        setSelectedNote(transformedNotes[0]);
+      // Now try the full query with error handling for each column
+      try {
+        const { data, error } = await supabase
+          .from('notes')
+          .select(`
+            id,
+            user_id,
+            title,
+            content,
+            created_at,
+            updated_at
+          `)
+          .eq('user_id', authUser.id);
+          
+        if (error) {
+          console.error('Basic notes query failed:', error);
+          throw error;
+        }
+        
+        // If basic query succeeds, try to get the extended fields
+        const notesWithBasicData = data || [];
+        console.log('Basic notes data loaded:', notesWithBasicData.length);
+        
+        // Try to load each note with full data
+        const fullNotes = await Promise.all(notesWithBasicData.map(async (basicNote) => {
+          try {
+            // Try to get extended fields for this note
+            const { data: noteData, error: noteError } = await supabase
+              .from('notes')
+              .select(`
+                id,
+                title,
+                content,
+                is_pinned,
+                tags,
+                editing_duration_minutes,
+                linked_resource_id,
+                linked_habit_id,
+                created_at,
+                updated_at,
+                last_edited_at
+              `)
+              .eq('id', basicNote.id)
+              .single();
+              
+            if (noteError) {
+              console.error(`Error loading extended data for note ${basicNote.id}:`, noteError);
+              // Return basic note with default values
+              return {
+                ...basicNote,
+                is_pinned: false,
+                tags: null,
+                editing_duration_minutes: 0,
+                linked_resource_id: null,
+                linked_habit_id: null,
+                last_edited_at: basicNote.updated_at
+              };
+            }
+            
+            return noteData;
+          } catch (noteError) {
+            console.error(`Error processing note ${basicNote.id}:`, noteError);
+            // Return basic note with default values
+            return {
+              ...basicNote,
+              is_pinned: false,
+              tags: null,
+              editing_duration_minutes: 0,
+              linked_resource_id: null,
+              linked_habit_id: null,
+              last_edited_at: basicNote.updated_at
+            };
+          }
+        }));
+        
+        console.log('Full notes data loaded:', fullNotes.length);
+        
+        // Now try to load linked resources and habits
+        const transformedNotes = await Promise.all(fullNotes.map(async (note) => {
+          let resourceTitle, resourceEmoji, habitTitle, habitEmoji;
+          
+          // Try to get linked resource
+          if (note.linked_resource_id) {
+            try {
+              const { data: resource } = await supabase
+                .from('learning_resources')
+                .select('title, emoji')
+                .eq('id', note.linked_resource_id)
+                .single();
+                
+              if (resource) {
+                resourceTitle = resource.title;
+                resourceEmoji = resource.emoji;
+              }
+            } catch (resourceError) {
+              console.error(`Error loading resource for note ${note.id}:`, resourceError);
+            }
+          }
+          
+          // Try to get linked habit
+          if (note.linked_habit_id) {
+            try {
+              const { data: habit } = await supabase
+                .from('habits')
+                .select('name, emoji')
+                .eq('id', note.linked_habit_id)
+                .single();
+                
+              if (habit) {
+                habitTitle = habit.name;
+                habitEmoji = habit.emoji;
+              }
+            } catch (habitError) {
+              console.error(`Error loading habit for note ${note.id}:`, habitError);
+            }
+          }
+          
+          return {
+            ...note,
+            resource_title: resourceTitle,
+            resource_emoji: resourceEmoji,
+            habit_title: habitTitle,
+            habit_emoji: habitEmoji
+          };
+        }));
+        
+        // Sort notes by pinned status and last edited date
+        transformedNotes.sort((a, b) => {
+          // First sort by pinned status
+          if (a.is_pinned && !b.is_pinned) return -1;
+          if (!a.is_pinned && b.is_pinned) return 1;
+          
+          // Then sort by last_edited_at
+          const dateA = new Date(a.last_edited_at || a.updated_at).getTime();
+          const dateB = new Date(b.last_edited_at || b.updated_at).getTime();
+          return dateB - dateA;
+        });
+        
+        console.log('Transformed notes with linked data:', transformedNotes.length);
+        setNotes(transformedNotes);
+        
+        // Auto-select first note if none selected
+        if (!selectedNoteId && transformedNotes.length > 0) {
+          setSelectedNoteId(transformedNotes[0].id);
+          setSelectedNote(transformedNotes[0]);
+        }
+      } catch (fullQueryError) {
+        console.error('Full notes query failed:', fullQueryError);
+        addToast(`Failed to load notes: ${(fullQueryError as any)?.message || 'Unknown error'}`, 'error');
       }
     } catch (error: any) {
-      console.error('Error loading notes:', error);
+      console.error('Error in loadNotes:', error);
       addToast(`Failed to load notes: ${error.message || 'Unknown error'}`, 'error');
     } finally {
       setLoading(false);

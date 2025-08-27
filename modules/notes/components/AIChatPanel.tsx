@@ -135,29 +135,17 @@ export default function AIChatPanel({
         msg.id === userMessageObj.id ? updatedUserMessage : msg
       ));
 
-      // Get note context for AI
-      const { data: contextData, error: contextError } = await supabase
-        .rpc('get_note_context', { note_uuid: noteId });
-
-      if (contextError) throw contextError;
-
-      // Prepare AI prompt with context
+      // Prepare AI prompt with context (simplified version without RPC)
       let systemPrompt = `You are a helpful AI assistant for note-taking. The user is working on a note titled "${noteTitle}".`;
       
-      if (contextData) {
-        if (contextData.learning_resource) {
-          const resource = contextData.learning_resource;
-          systemPrompt += ` This note is linked to a ${resource.type} called "${resource.title}". The user has completed ${resource.progress_minutes} out of ${resource.duration_minutes} minutes (${resource.progress_percentage}% complete).`;
-        }
-        
-        if (contextData.habit) {
-          const habit = contextData.habit;
-          systemPrompt += ` This note is also linked to a habit "${habit.title}" ${habit.emoji} with a current streak of ${habit.streak} days.`;
-        }
-
-        if (contextData.tags && contextData.tags.length > 0) {
-          systemPrompt += ` The note is tagged with: ${contextData.tags.join(', ')}.`;
-        }
+      // Add linked resource context if available
+      if (linkedResourceId) {
+        systemPrompt += ` This note is linked to a learning resource.`;
+      }
+      
+      // Add linked habit context if available
+      if (linkedHabitId) {
+        systemPrompt += ` This note is also linked to a habit.`;
       }
 
       systemPrompt += ` The current note content is: "${noteContent}"`;
@@ -237,8 +225,14 @@ export default function AIChatPanel({
         msg.id === aiMessageObj.id ? updatedAIMessage : msg
       ));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
+      console.error('Error details:', {
+        message: error?.message || 'Unknown error',
+        status: error?.status || 'No status',
+        code: error?.code || 'No code',
+        details: error?.details || 'No details'
+      });
       addToast('Failed to send message', 'error');
       // Keep the user message but mark it as failed
       setMessages(prev => prev.map(msg => 

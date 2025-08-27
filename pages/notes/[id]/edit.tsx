@@ -65,26 +65,41 @@ export default function AINotesEditor() {
     try {
       setSaving(true);
       
+      // Prepare update payload with proper fallbacks
+      const updatePayload = {
+        title: noteData.title !== undefined ? noteData.title : note.title,
+        content: noteData.content !== undefined ? noteData.content : note.content,
+        tags: noteData.tags !== undefined ? (Array.isArray(noteData.tags) ? noteData.tags : null) : (Array.isArray(note.tags) ? note.tags : null),
+        is_pinned: noteData.is_pinned !== undefined ? noteData.is_pinned : note.is_pinned,
+        linked_resource_id: noteData.linked_resource_id !== undefined ? noteData.linked_resource_id : note.linked_resource_id,
+        linked_habit_id: noteData.linked_habit_id !== undefined ? noteData.linked_habit_id : note.linked_habit_id,
+        last_edited_at: new Date().toISOString(),
+      };
+
+      // Log the payload for debugging
+      console.log('Saving note with payload:', updatePayload);
+      console.log('Note ID:', note.id);
+      console.log('User ID:', user.id);
+
       const { error } = await supabase
         .from('notes')
-        .update({
-          title: noteData.title || note.title,
-          content: noteData.content || note.content,
-          tags: noteData.tags !== undefined ? noteData.tags : note.tags,
-          is_pinned: noteData.is_pinned !== undefined ? noteData.is_pinned : note.is_pinned,
-          linked_resource_id: noteData.linked_resource_id !== undefined ? noteData.linked_resource_id : note.linked_resource_id,
-          linked_habit_id: noteData.linked_habit_id !== undefined ? noteData.linked_habit_id : note.linked_habit_id,
-          last_edited_at: new Date().toISOString(),
-        })
-        .eq('id', note.id);
+        .update(updatePayload)
+        .eq('id', note.id)
+        .throwOnError(); // This will throw on any error
 
-      if (error) throw error;
+      console.log('Note saved successfully');
 
       // Update local state
       setNote(prev => prev ? { ...prev, ...noteData, last_edited_at: new Date().toISOString() } : null);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving note:', error);
+      console.error('Error details:', {
+        message: error?.message || 'Unknown error',
+        status: error?.status || 'No status',
+        code: error?.code || 'No code',
+        details: error?.details || 'No details'
+      });
       addToast('Failed to auto-save', 'error');
     } finally {
       setSaving(false);
@@ -289,9 +304,10 @@ export default function AINotesEditor() {
     
     if (!currentTags.includes(newTag)) {
       const updatedTags = [...currentTags, newTag];
-      const updatedNote = { tags: updatedTags };
+      // Update local state immediately
       setNote(prev => prev ? { ...prev, tags: updatedTags } : null);
-      scheduleAutoSave(updatedNote);
+      // Schedule save with full note data
+      scheduleAutoSave({ tags: updatedTags });
       setTagInput('');
     }
   };
@@ -300,9 +316,11 @@ export default function AINotesEditor() {
     if (!note || !Array.isArray(note.tags)) return;
     
     const updatedTags = note.tags.filter(tag => tag !== tagToRemove);
-    const updatedNote = { tags: updatedTags.length > 0 ? updatedTags : null };
-    setNote(prev => prev ? { ...prev, tags: updatedTags.length > 0 ? updatedTags : null } : null);
-    scheduleAutoSave(updatedNote);
+    const finalTags = updatedTags.length > 0 ? updatedTags : null;
+    // Update local state immediately
+    setNote(prev => prev ? { ...prev, tags: finalTags } : null);
+    // Schedule save with full note data
+    scheduleAutoSave({ tags: finalTags });
   };
 
   const updateLinkedResource = (resourceId: string) => {

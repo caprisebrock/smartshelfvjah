@@ -480,10 +480,11 @@ export default function AdvancedNotesPage() {
     
     if (!currentTags.includes(newTag)) {
       const updatedTags = [...currentTags, newTag];
-      const updatedNote = { ...selectedNote, tags: updatedTags };
-      setSelectedNote(updatedNote);
+      // Update local state immediately
+      setSelectedNote(prev => prev ? { ...prev, tags: updatedTags } : null);
       setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, tags: updatedTags } : n));
-      scheduleAutoSave(updatedNote);
+      // Schedule save with just the tags field
+      scheduleAutoSave({ ...selectedNote, tags: updatedTags });
       setTagInput('');
     }
   };
@@ -493,10 +494,12 @@ export default function AdvancedNotesPage() {
     if (!selectedNote || !Array.isArray(selectedNote.tags)) return;
     
     const updatedTags = selectedNote.tags.filter(tag => tag !== tagToRemove);
-    const updatedNote = { ...selectedNote, tags: updatedTags.length > 0 ? updatedTags : null };
-    setSelectedNote(updatedNote);
-    setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, tags: updatedTags.length > 0 ? updatedTags : null } : n));
-    scheduleAutoSave(updatedNote);
+    const finalTags = updatedTags.length > 0 ? updatedTags : null;
+    // Update local state immediately
+    setSelectedNote(prev => prev ? { ...prev, tags: finalTags } : null);
+    setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, tags: finalTags } : n));
+    // Schedule save with just the tags field
+    scheduleAutoSave({ ...selectedNote, tags: finalTags });
   };
 
   // Insert AI content into note

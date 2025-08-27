@@ -81,7 +81,7 @@ export default function AIChatPanel({
       const transformedMessages: AIMessage[] = (data || []).map(msg => ({
         id: msg.id,
         role: msg.role,
-        message: msg.content || msg.message || '', // Handle both field names
+        message: msg.message || '', // Use 'message' field as per database schema
         tone: msg.tone,
         created_at: msg.created_at,
       }));
@@ -121,7 +121,7 @@ export default function AIChatPanel({
         .insert({
           note_id: noteId,
           role: 'user',
-          content: userMessage, // Use 'content' instead of 'message'
+          message: userMessage, // Use 'message' as per database schema
           tone: selectedTone,
         })
         .select()
@@ -223,7 +223,7 @@ export default function AIChatPanel({
         .insert({
           note_id: noteId,
           role: 'assistant',
-          content: aiResponse, // Use 'content' instead of 'message'
+          message: aiResponse, // Use 'message' as per database schema
           tone: selectedTone,
         })
         .select()

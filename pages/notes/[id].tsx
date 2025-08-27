@@ -6,6 +6,7 @@ import { ArrowLeft, Calendar, Clock, Edit, Trash2, BookOpen, Target, Tag } from 
 import { useUser } from '../../modules/auth/hooks/useUser';
 import { useToast } from '../../modules/shared/context/ToastContext';
 import { supabase } from '../../modules/database/config/databaseConfig';
+import ConfirmDeleteModal from '../../modules/shared/components/ConfirmDeleteModal';
 
 interface Note {
   id: string;
@@ -32,7 +33,11 @@ export default function NoteDetailPage() {
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; noteId: string | null; noteTitle: string }>({
+    isOpen: false,
+    noteId: null,
+    noteTitle: ''
+  });
 
   useEffect(() => {
     if (id && user?.id && typeof id === 'string') {
@@ -262,7 +267,7 @@ export default function NoteDetailPage() {
                 Edit
               </Link>
               <button
-                onClick={() => setDeleteConfirm(true)}
+                onClick={() => setDeleteModal({ isOpen: true, noteId: note.id, noteTitle: note.title })}
                 className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -332,31 +337,15 @@ export default function NoteDetailPage() {
           </div>
         </main>
 
-        {/* Delete Confirmation Modal */}
-        {deleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Note</h3>
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to delete &quot;{note.title}&quot;? This action cannot be undone.
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setDeleteConfirm(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={deleteNote}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Confirm Delete Modal */}
+        <ConfirmDeleteModal
+          isOpen={deleteModal.isOpen}
+          onClose={() => setDeleteModal({ isOpen: false, noteId: null, noteTitle: '' })}
+          onConfirm={deleteNote}
+          title="Delete this note?"
+          description="This will permanently remove the note and all its content."
+          itemName={deleteModal.noteTitle}
+        />
       </div>
     </>
   );

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { ArrowLeft, Plus, FileText, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Clock, Trash2 } from 'lucide-react';
 import { useUser } from '../../modules/auth/hooks/useUser';
 import { useToast } from '../../modules/shared/context/ToastContext';
 import { getLearningResourceById, deleteLearningResource, LearningResource } from '../../modules/learning-resources/api/getLearningResourceById';
 import { supabase } from '../../modules/database/config/databaseConfig';
+import ConfirmDeleteModal from '../../modules/shared/components/ConfirmDeleteModal';
 
 
 export default function LearningResourceDetailPage() {
@@ -20,6 +21,11 @@ export default function LearningResourceDetailPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [linkedNotes, setLinkedNotes] = useState<any[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; resourceId: string | null; resourceTitle: string }>({
+    isOpen: false,
+    resourceId: null,
+    resourceTitle: ''
+  });
 
 
   useEffect(() => {
@@ -122,23 +128,29 @@ export default function LearningResourceDetailPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!resource || !user?.id) return;
+  const openDeleteModal = () => {
+    if (!resource) return;
+    setDeleteModal({
+      isOpen: true,
+      resourceId: resource.id,
+      resourceTitle: resource.title
+    });
+  };
 
-    const confirmed = window.confirm('Are you sure you want to delete this learning resource? This action cannot be undone.');
-    
-    if (confirmed) {
-      try {
-        const success = await deleteLearningResource(resource.id, user.id);
-        if (success) {
-          router.push('/my-learning');
-        } else {
-          alert('Failed to delete resource. Please try again.');
-        }
-      } catch (err) {
-        console.error('Error deleting resource:', err);
-        alert('Failed to delete resource. Please try again.');
+  const handleDelete = async () => {
+    if (!deleteModal.resourceId || !user?.id) return;
+
+    try {
+      const success = await deleteLearningResource(deleteModal.resourceId, user.id);
+      if (success) {
+        addToast('Learning resource deleted successfully', 'success');
+        router.push('/my-learning');
+      } else {
+        addToast('Failed to delete resource', 'error');
       }
+    } catch (err) {
+      console.error('Error deleting resource:', err);
+      addToast('Failed to delete resource', 'error');
     }
   };
 
@@ -262,9 +274,10 @@ export default function LearningResourceDetailPage() {
             </button>
             <div className="flex gap-2">
               <button 
-                className="text-sm text-gray-600 hover:text-red-500" 
-                onClick={handleDelete}
+                className="text-sm text-gray-600 hover:text-red-500 flex items-center gap-1" 
+                onClick={openDeleteModal}
               >
+                <Trash2 className="w-4 h-4" />
                 Delete
               </button>
               <button 
@@ -432,7 +445,15 @@ export default function LearningResourceDetailPage() {
           </div>
         </main>
 
-
+        {/* Confirm Delete Modal */}
+        <ConfirmDeleteModal
+          isOpen={deleteModal.isOpen}
+          onClose={() => setDeleteModal({ isOpen: false, resourceId: null, resourceTitle: '' })}
+          onConfirm={handleDelete}
+          title="Delete this learning resource?"
+          description="This will permanently remove the resource and all its progress data."
+          itemName={deleteModal.resourceTitle}
+        />
       </div>
     </>
   );

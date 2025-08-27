@@ -6,7 +6,7 @@ import { Habit, useHabits } from '../context/HabitsContext';
 import { useToast } from '../../shared/context/ToastContext';
 import { useUser } from '../../auth/hooks/useUser';
 import { supabase } from '../../database/config/databaseConfig';
-import DeleteHabitModal from './DeleteHabitModal';
+import ConfirmDeleteModal from '../../shared/components/ConfirmDeleteModal';
 
 interface HabitCardProps {
   habit: Habit;
@@ -306,15 +306,14 @@ export default function HabitCard({ habit }: HabitCardProps) {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <DeleteHabitModal
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
         isOpen={showDeleteModal}
         onClose={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
-        habitName={habit.name}
-        habitEmoji={habit.emoji}
-        habitColor={habit.color}
-        isDeleting={isDeleting}
+        title="Delete this habit?"
+        description="This will permanently remove the habit and all its progress data."
+        itemName={habit.name}
       />
     </>
   );

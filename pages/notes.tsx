@@ -7,6 +7,7 @@ import { useToast } from '../modules/shared/context/ToastContext';
 import { supabase } from '../modules/database/config/databaseConfig';
 import RichTextEditor from '../modules/notes/components/RichTextEditor';
 import AIChatPanel from '../modules/notes/components/AIChatPanel';
+import ConfirmDeleteModal from '../modules/shared/components/ConfirmDeleteModal';
 
 interface Note {
   id: string;
@@ -43,6 +44,11 @@ export default function AdvancedNotesPage() {
   const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(null);
   const [tagInput, setTagInput] = useState('');
   const [creatingNote, setCreatingNote] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; noteId: string | null; noteTitle: string }>({
+    isOpen: false,
+    noteId: null,
+    noteTitle: ''
+  });
 
   // Auto-save interval
   const saveNote = useCallback(async (note: Note) => {
@@ -516,29 +522,38 @@ export default function AdvancedNotesPage() {
     });
   };
 
+  // Open delete modal
+  const openDeleteModal = (noteId: string, noteTitle: string) => {
+    setDeleteModal({
+      isOpen: true,
+      noteId,
+      noteTitle
+    });
+  };
+
   // Delete note
-  const deleteNote = async (noteId: string) => {
-    if (!confirm('Are you sure you want to delete this note?')) return;
+  const deleteNote = async () => {
+    if (!deleteModal.noteId) return;
 
     try {
       // Delete from database
       const { error } = await supabase
         .from('notes')
         .delete()
-        .eq('id', noteId);
+        .eq('id', deleteModal.noteId);
 
       if (error) throw error;
 
       // Remove from local state
-      setNotes(prev => prev.filter(n => n.id !== noteId));
+      setNotes(prev => prev.filter(n => n.id !== deleteModal.noteId));
       
       // If this was the selected note, clear selection
-      if (selectedNoteId === noteId) {
+      if (selectedNoteId === deleteModal.noteId) {
         setSelectedNoteId(null);
         setSelectedNote(null);
         
         // If there are other notes, select the first one
-        const remainingNotes = notes.filter(n => n.id !== noteId);
+        const remainingNotes = notes.filter(n => n.id !== deleteModal.noteId);
         if (remainingNotes.length > 0) {
           selectNote(remainingNotes[0].id);
         } else {
@@ -587,11 +602,21 @@ export default function AdvancedNotesPage() {
         <div className="h-screen flex bg-gray-50">
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        </div>
-      </>
-    );
-  }
+                  </div>
+      </div>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, noteId: null, noteTitle: '' })}
+        onConfirm={deleteNote}
+        title="Delete this note?"
+        description="This will permanently remove the note and all its content."
+        itemName={deleteModal.noteTitle}
+      />
+    </>
+  );
+}
 
   return (
     <>
@@ -742,10 +767,10 @@ export default function AdvancedNotesPage() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    deleteNote(note.id);
+                                    openDeleteModal(note.id, note.title || 'Untitled');
                                   }}
-                                  className="hover:text-red-500 transition-colors"
-                                  title="Delete note"
+                                  className="text-muted hover:text-red-500 transition-colors p-1"
+                                  title="Delete"
                                 >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
@@ -910,6 +935,16 @@ export default function AdvancedNotesPage() {
           )}
         </button>
       </div>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, noteId: null, noteTitle: '' })}
+        onConfirm={deleteNote}
+        title="Delete this note?"
+        description="This will permanently remove the note and all its content."
+        itemName={deleteModal.noteTitle}
+      />
     </>
   );
 } 

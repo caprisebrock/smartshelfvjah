@@ -77,7 +77,16 @@ export default function AIChatPanel({
 
       if (error) throw error;
       
-      setMessages(data || []);
+      // Transform database format to component format
+      const transformedMessages: AIMessage[] = (data || []).map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        message: msg.content || msg.message || '', // Handle both field names
+        tone: msg.tone,
+        created_at: msg.created_at,
+      }));
+      
+      setMessages(transformedMessages);
     } catch (error) {
       console.error('Error loading messages:', error);
       addToast('Failed to load chat history', 'error');
@@ -93,15 +102,18 @@ export default function AIChatPanel({
     setInput('');
     setLoading(true);
 
+    // Create user message object
+    const userMessageObj: AIMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      message: userMessage,
+      created_at: new Date().toISOString(),
+    };
+
     try {
-      // Add user message to UI immediately
-      const tempUserMessage: AIMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        message: userMessage,
-        created_at: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, tempUserMessage]);
+
+      // Add user message to UI immediately (optimistic update)
+      setMessages(prev => [...prev, userMessageObj]);
 
       // Save user message to database
       const { data: savedUserMessage, error: userError } = await supabase
@@ -109,13 +121,19 @@ export default function AIChatPanel({
         .insert({
           note_id: noteId,
           role: 'user',
-          message: userMessage,
+          content: userMessage, // Use 'content' instead of 'message'
           tone: selectedTone,
         })
         .select()
         .single();
 
       if (userError) throw userError;
+
+      // Update the temporary message with the real database ID
+      const updatedUserMessage = { ...userMessageObj, id: savedUserMessage.id };
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessageObj.id ? updatedUserMessage : msg
+      ));
 
       // Get note context for AI
       const { data: contextData, error: contextError } = await supabase
@@ -166,6 +184,7 @@ export default function AIChatPanel({
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userMessage }
           ],
+          note_id: noteId, // Include note context
           model: 'gpt-3.5-turbo',
           max_tokens: 500,
         }),
@@ -174,7 +193,29 @@ export default function AIChatPanel({
       if (!response.ok) throw new Error('Failed to get AI response');
 
       const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+      
+      // Handle the API response format
+      let aiResponse: string;
+      if (data.choices && data.choices[0]?.message?.content) {
+        // OpenAI format
+        aiResponse = data.choices[0].message.content;
+      } else if (data.response && data.response.content) {
+        // Our API format
+        aiResponse = data.response.content;
+      } else {
+        aiResponse = 'Sorry, I could not generate a response.';
+      }
+
+      // Create AI message object
+      const aiMessageObj: AIMessage = {
+        id: Date.now().toString() + '-ai',
+        role: 'assistant',
+        message: aiResponse,
+        created_at: new Date().toISOString(),
+      };
+
+      // Add AI message to UI immediately (optimistic update)
+      setMessages(prev => [...prev, aiMessageObj]);
 
       // Save AI message to database
       const { data: savedAIMessage, error: aiError } = await supabase
@@ -182,23 +223,29 @@ export default function AIChatPanel({
         .insert({
           note_id: noteId,
           role: 'assistant',
-          message: aiResponse,
+          content: aiResponse, // Use 'content' instead of 'message'
           tone: selectedTone,
-          tokens: data.usage?.total_tokens || 0,
         })
         .select()
         .single();
 
       if (aiError) throw aiError;
 
-      // Add AI message to UI
-      setMessages(prev => [...prev.slice(0, -1), savedUserMessage, savedAIMessage]);
+      // Update the temporary AI message with the real database ID
+      const updatedAIMessage = { ...aiMessageObj, id: savedAIMessage.id };
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageObj.id ? updatedAIMessage : msg
+      ));
 
     } catch (error) {
       console.error('Error sending message:', error);
       addToast('Failed to send message', 'error');
-      // Remove the temporary user message on error
-      setMessages(prev => prev.slice(0, -1));
+      // Keep the user message but mark it as failed
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessageObj.id 
+          ? { ...msg, message: msg.message + ' (Failed to send)' }
+          : msg
+      ));
     } finally {
       setLoading(false);
     }

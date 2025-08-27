@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { Plus, Search, X, Star, Clock, Tag, MessageSquare, Sidebar, Edit3, BookOpen, Target } from 'lucide-react';
+import { Plus, Search, X, Star, Clock, Tag, MessageSquare, Sidebar, Edit3, BookOpen, Target, Trash2 } from 'lucide-react';
 import { useUser } from '../modules/auth/hooks/useUser';
 import { useToast } from '../modules/shared/context/ToastContext';
 import { supabase } from '../modules/database/config/databaseConfig';
@@ -691,15 +691,26 @@ export default function AdvancedNotesPage() {
                                 {note.editing_duration_minutes > 0 && (
                                   <span>{note.editing_duration_minutes}m</span>
                                 )}
-                              <button
-                          onClick={(e) => {
-                            e.stopPropagation();
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     togglePin(note.id, note.is_pinned);
-                          }}
+                                  }}
                                   className="hover:text-yellow-500 transition-colors"
-                        >
+                                  title="Toggle pin"
+                                >
                                   <Star className={`w-3 h-3 ${note.is_pinned ? 'text-yellow-500 fill-current' : ''}`} />
-                              </button>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteNote(note.id);
+                                  }}
+                                  className="hover:text-red-500 transition-colors"
+                                  title="Delete note"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               </div>
                             </div>
                           </div>

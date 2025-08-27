@@ -380,7 +380,7 @@ export default function AIChatPanel({
 
       {/* Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-3">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -396,6 +396,43 @@ export default function AIChatPanel({
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="w-4 h-4" />
+          </button>
+        </div>
+        
+        {/* AI Test Helper Buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setInput('Summarize this note in 3 sentences.');
+              setTimeout(() => sendMessage(), 100);
+            }}
+            className="flex-1 px-3 py-2 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
+            disabled={loading}
+            title="Test prompt: Summarize this note in 3 sentences"
+          >
+            🧠 Summary
+          </button>
+          <button
+            onClick={() => {
+              setInput('What are the key takeaways from this note?');
+              setTimeout(() => sendMessage(), 100);
+            }}
+            className="flex-1 px-3 py-2 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
+            disabled={loading}
+            title="Test prompt: What are the key takeaways from this note?"
+          >
+            🔍 Key Takeaways
+          </button>
+          <button
+            onClick={() => {
+              setInput('Give me 3 deep insights from this note.');
+              setTimeout(() => sendMessage(), 100);
+            }}
+            className="flex-1 px-3 py-2 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
+            disabled={loading}
+            title="Test prompt: Give me 3 deep insights from this note"
+          >
+            ✨ Deep Insights
           </button>
         </div>
       </div>

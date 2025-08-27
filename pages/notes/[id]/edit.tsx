@@ -306,8 +306,15 @@ export default function AINotesEditor() {
       const updatedTags = [...currentTags, newTag];
       // Update local state immediately
       setNote(prev => prev ? { ...prev, tags: updatedTags } : null);
-      // Schedule save with full note data
-      scheduleAutoSave({ tags: updatedTags });
+      // Schedule save with complete note data including the new tags
+      scheduleAutoSave({ 
+        title: note.title,
+        content: note.content,
+        tags: updatedTags,
+        is_pinned: note.is_pinned,
+        linked_resource_id: note.linked_resource_id,
+        linked_habit_id: note.linked_habit_id
+      });
       setTagInput('');
     }
   };
@@ -319,8 +326,15 @@ export default function AINotesEditor() {
     const finalTags = updatedTags.length > 0 ? updatedTags : null;
     // Update local state immediately
     setNote(prev => prev ? { ...prev, tags: finalTags } : null);
-    // Schedule save with full note data
-    scheduleAutoSave({ tags: finalTags });
+    // Schedule save with complete note data including the updated tags
+    scheduleAutoSave({ 
+      title: note.title,
+      content: note.content,
+      tags: finalTags,
+      is_pinned: note.is_pinned,
+      linked_resource_id: note.linked_resource_id,
+      linked_habit_id: note.linked_habit_id
+    });
   };
 
   const updateLinkedResource = (resourceId: string) => {

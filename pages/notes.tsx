@@ -483,8 +483,15 @@ export default function AdvancedNotesPage() {
       // Update local state immediately
       setSelectedNote(prev => prev ? { ...prev, tags: updatedTags } : null);
       setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, tags: updatedTags } : n));
-      // Schedule save with just the tags field
-      scheduleAutoSave({ ...selectedNote, tags: updatedTags });
+      // Schedule save with complete note data including the new tags
+      scheduleAutoSave({ 
+        title: selectedNote.title,
+        content: selectedNote.content,
+        tags: updatedTags,
+        is_pinned: selectedNote.is_pinned,
+        linked_resource_id: selectedNote.linked_resource_id,
+        linked_habit_id: selectedNote.linked_habit_id
+      });
       setTagInput('');
     }
   };
@@ -498,8 +505,15 @@ export default function AdvancedNotesPage() {
     // Update local state immediately
     setSelectedNote(prev => prev ? { ...prev, tags: finalTags } : null);
     setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, tags: finalTags } : n));
-    // Schedule save with just the tags field
-    scheduleAutoSave({ ...selectedNote, tags: finalTags });
+    // Schedule save with complete note data including the updated tags
+    scheduleAutoSave({ 
+      title: selectedNote.title,
+      content: selectedNote.content,
+      tags: finalTags,
+      is_pinned: selectedNote.is_pinned,
+      linked_resource_id: selectedNote.linked_resource_id,
+      linked_habit_id: selectedNote.linked_habit_id
+    });
   };
 
   // Insert AI content into note

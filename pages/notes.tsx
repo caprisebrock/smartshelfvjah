@@ -516,6 +516,44 @@ export default function AdvancedNotesPage() {
     });
   };
 
+  // Delete note
+  const deleteNote = async (noteId: string) => {
+    if (!confirm('Are you sure you want to delete this note?')) return;
+
+    try {
+      // Delete from database
+      const { error } = await supabase
+        .from('notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+      
+      // If this was the selected note, clear selection
+      if (selectedNoteId === noteId) {
+        setSelectedNoteId(null);
+        setSelectedNote(null);
+        
+        // If there are other notes, select the first one
+        const remainingNotes = notes.filter(n => n.id !== noteId);
+        if (remainingNotes.length > 0) {
+          selectNote(remainingNotes[0].id);
+        } else {
+          // No notes left, redirect to main notes page
+          router.push('/notes');
+        }
+      }
+
+      addToast('Note deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      addToast('Failed to delete note', 'error');
+    }
+  };
+
   // Insert AI content into note
   const insertAIContentToNote = (content: string) => {
     if (!selectedNote) return;
@@ -730,13 +768,23 @@ export default function AdvancedNotesPage() {
           <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4">
             <div className="flex items-center gap-3">
               {sidebarCollapsed && (
-                <button
-                  onClick={() => setSidebarCollapsed(false)}
-                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Show sidebar"
-                >
-                  <Sidebar className="w-4 h-4" />
-                </button>
+                <>
+                  <button
+                    onClick={() => setSidebarCollapsed(false)}
+                    className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Show sidebar"
+                  >
+                    <Sidebar className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => router.push('/dashboard')}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Back to Dashboard"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Dashboard
+                  </button>
+                </>
               )}
               {selectedNote && (
                   <input
